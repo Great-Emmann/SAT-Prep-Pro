@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profile",
+      "description": "User account information and SAT study settings",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    },
+    "users/studyLogs": {
+      "title": "Study Log",
+      "description": "Daily logged study hours per subject",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "mathHours": { "type": "number" },
+        "readingHours": { "type": "number" },
+        "writingHours": { "type": "number" }
+      },
+      "required": ["date"]
+    },
+    "users/mistakes": {
+      "title": "Mistake Journal",
+      "description": "Logged mistakes and corrections for targeted review",
+      "type": "object",
+      "properties": {
+        "question": { "type": "string" },
+        "section": { "type": "string" },
+        "wrongAnswer": { "type": "string" },
+        "correctAnswer": { "type": "string" },
+        "explanation": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["question"]
+    }
+  }
+}

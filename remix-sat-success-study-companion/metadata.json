@@ -1,0 +1,8 @@
+{
+  "name": "SAT Prep Pro",
+  "description": "Realistic Digital SAT preparation platform with adaptive mock exams, official College Board math reference formulas, integrated Desmos calculator, targeted drills, and AI diagnostic tutoring.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "id": "/",
+  "name": "SAT Prep Pro",
+  "short_name": "SAT Prep Pro",
+  "description": "Realistic Digital SAT preparation platform with adaptive mock exams, official College Board math reference formulas, integrated Desmos calculator, targeted drills, and AI diagnostic tutoring.",
+  "lang": "en",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "orientation": "portrait",
+  "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "play",
+      "id": "com.satpreppro.app",
+      "url": "https://play.google.com/store/apps/details?id=com.satpreppro.app"
+    }
+  ],
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "SAT Prep Pro Desktop View"
+    },
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "720x1280",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "SAT Prep Pro Mobile View"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Practice Test",
+      "short_name": "Practice",
+      "description": "Start an SAT practice exam",
+      "url": "/?shortcut=practice",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Study Plan",
+      "short_name": "Study",
+      "description": "View your personalized study path",
+      "url": "/?shortcut=study",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}
