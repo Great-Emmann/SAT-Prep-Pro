@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs";
 import dotenv from "dotenv";
+import { installPasswordResetOtpRoutes } from "./passwordResetOtp";
 
 dotenv.config();
 
@@ -18,6 +19,7 @@ const currentDirname = currentFilename ? path.dirname(currentFilename) : process
 
 export const app = express();
 app.use(express.json());
+installPasswordResetOtpRoutes(app);
 // Disable the legacy in-memory auth routes: they store plaintext passwords
 // and cannot provide durable sessions on serverless hosts.
 app.use("/api/auth", (_req, res) => {
