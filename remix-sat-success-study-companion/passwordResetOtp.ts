@@ -29,7 +29,8 @@ function services() {
     const parsed = JSON.parse(account);
     initializeApp({ credential: cert(parsed) });
   }
-  return { db: getFirestore(), adminAuth: getAuth(), secret, resendApiKey, sender };
+  const databaseId = process.env.FIREBASE_FIRESTORE_DATABASE_ID || "(default)";
+  return { db: getFirestore(getApps()[0], databaseId), adminAuth: getAuth(), secret, resendApiKey, sender };
 }
 
 export function installPasswordResetOtpRoutes(app: Express) {
@@ -92,7 +93,7 @@ export function installPasswordResetOtpRoutes(app: Express) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          from: sender,
+          from: "SAT Prep Pro <" + sender + ">",
           to: [email],
           subject: "SAT Prep Pro — your password reset code",
           text: "Your SAT Prep Pro password reset code is " + code +
