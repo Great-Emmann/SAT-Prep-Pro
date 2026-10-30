@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { app } from "../server";
+import { app } from "../server.js";
 
 // Vercel routes /api/* here; preserve the actual Express endpoint path.
 export default function handler(req: Request, res: Response) {
