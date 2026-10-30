@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, updateProfile, reload, signOut } from "firebase/auth";
 import {
   User,
   Calendar,
@@ -64,7 +65,8 @@ import {
   saveFirestoreStudyLog,
   fetchFirestoreStudyLogs,
   fetchFirestoreMistakes,
-  saveFirestoreMistake
+  saveFirestoreMistake,
+  signInWithGoogle
 } from "./lib/firebase";
 import {
   StudentProfile,
@@ -232,6 +234,7 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setFirebaseUser(u);
+      setUser(u && (!u.providerData.some(p => p.providerId === "password") || u.emailVerified) ? { name: u.displayName || u.email || "SAT Student", email: u.email || "" } : null);
       if (u) {
         syncUserProfile(u.uid, profile);
         syncUserSettings(u.uid, reminderSettings);
@@ -251,11 +254,7 @@ export default function App() {
   }, []);
 
   // --- Google Sign-In & Mistake Journal States ---
-  const [user, setUser] = useState<{ name: string; email: string; picture?: string } | null>(() => {
-    const saved = localStorage.getItem("sat_user");
-    if (saved) return JSON.parse(saved);
-    return null;
-  });
+  const [user, setUser] = useState<{ name: string; email: string; picture?: string } | null>(null);
 
   // --- Student Registration & Auth Flow States ---
   const [authTab, setAuthTab] = useState<"register" | "login" | "verify">("register");
@@ -688,78 +687,67 @@ export default function App() {
     }
   };
 
+  // Student credentials are managed by Firebase Authentication, never by the legacy Express memory store.
   const handleStudentRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthErrorMsg("");
-    if (!regFullName.trim() || !regUsername.trim() || !regEmail.trim() || !regPassword.trim() || !regPasswordConfirm.trim()) {
+    if (!regFullName.trim() || !regUsername.trim() || !regEmail.trim() || !regPassword) {
       setAuthErrorMsg("Please fill in all required fields.");
       return;
     }
+    if (regPassword.length < 8) {
+      setAuthErrorMsg("Choose a password with at least 8 characters.");
+      return;
+    }
     if (regPassword !== regPasswordConfirm) {
-      setAuthErrorMsg("Passwords do not match. Please ensure both password fields match.");
+      setAuthErrorMsg("Passwords do not match.");
       return;
     }
     setAuthLoading(true);
-
     try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fullName: regFullName,
-          username: regUsername,
-          email: regEmail,
-          password: regPassword,
-          currentMathScore: regCurrentMath,
-          currentReadingScore: regCurrentReading,
-          targetMathScore: regTargetMath,
-          targetReadingScore: regTargetReading
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setAuthErrorMsg(data.error || "Registration failed. Please check your inputs.");
-      } else {
-        setPendingVerificationEmail(regEmail.trim().toLowerCase());
-        setPendingVerificationToken(data.account.verificationToken);
-        setAuthTab("verify");
-      }
-    } catch (err) {
-      setAuthErrorMsg("Network error during registration. Please try again.");
+      const result = await createUserWithEmailAndPassword(auth, regEmail.trim(), regPassword);
+      await updateProfile(result.user, { displayName: regFullName.trim() });
+      const updatedProfile = {
+        ...profile, name: regFullName.trim(), username: regUsername.trim(),
+        currentMath: Number(regCurrentMath) || profile.currentMath,
+        currentReadingWriting: Number(regCurrentReading) || profile.currentReadingWriting,
+        targetMath: Number(regTargetMath) || profile.targetMath,
+        targetReadingWriting: Number(regTargetReading) || profile.targetReadingWriting
+      };
+      setProfile(updatedProfile);
+      localStorage.setItem("sat_profile", JSON.stringify(updatedProfile));
+      await sendEmailVerification(result.user);
+      setPendingVerificationEmail(result.user.email || regEmail.trim());
+      setVerificationSuccessMsg("A real verification email has been sent. Check your inbox and spam folder.");
+      setAuthTab("verify");
+    } catch (err: any) {
+      setAuthErrorMsg(err?.code === "auth/email-already-in-use"
+        ? "This email is already registered. Please sign in."
+        : err?.message || "Registration failed.");
     } finally {
       setAuthLoading(false);
     }
   };
 
-  const handleStudentVerify = async (tokenToVerify?: string) => {
-    const code = tokenToVerify || inputVerificationToken;
-    if (!code || !code.trim()) {
-      setAuthErrorMsg("Please enter your 6-digit verification code or click the verification link.");
-      return;
-    }
-
+  const handleStudentVerify = async (_tokenToVerify?: string) => {
     setAuthErrorMsg("");
     setAuthLoading(true);
-
     try {
-      const res = await fetch("/api/auth/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: pendingVerificationEmail,
-          token: code.trim()
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setAuthErrorMsg(data.error || "Verification failed. Check your verification code.");
-      } else {
-        setVerificationSuccessMsg("Email verified successfully! You can now log in to your account.");
-        setLoginCredential(pendingVerificationEmail);
+      if (!auth.currentUser) {
         setAuthTab("login");
+        setAuthErrorMsg("Please sign in after verifying your email.");
+        return;
       }
-    } catch (err) {
-      setAuthErrorMsg("Network error during verification. Please try again.");
+      await reload(auth.currentUser);
+      if (!auth.currentUser.emailVerified) {
+        setAuthErrorMsg("Email not verified yet. Open the email from Firebase, click the link, then try again.");
+        return;
+      }
+      const verified = auth.currentUser;
+      setUser({ name: verified.displayName || verified.email || "SAT Student", email: verified.email || "" });
+      setVerificationSuccessMsg("Email verified! Welcome to SAT Prep Pro.");
+    } catch (err: any) {
+      setAuthErrorMsg(err?.message || "Could not check email verification.");
     } finally {
       setAuthLoading(false);
     }
@@ -768,67 +756,35 @@ export default function App() {
   const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthErrorMsg("");
-    if (!loginCredential.trim() || !loginPassword.trim()) {
-      setAuthErrorMsg("Please enter both your Email/Username and Password.");
+    if (!loginCredential.trim() || !loginPassword) {
+      setAuthErrorMsg("Enter your email and password.");
       return;
     }
     setAuthLoading(true);
-
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          credential: loginCredential,
-          password: loginPassword
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        if (data.requiresVerification) {
-          setPendingVerificationEmail(data.email);
-          setPendingVerificationToken(data.verificationToken || "");
-          setAuthErrorMsg("Your email address is not verified yet. Please click the verification link or enter your code.");
-          setAuthTab("verify");
-        } else {
-          setAuthErrorMsg(data.error || "Invalid login credentials.");
-        }
-      } else {
-        const loggedUser = {
-          name: data.user.fullName,
-          email: data.user.email
-        };
-        setUser(loggedUser);
-        localStorage.setItem("sat_user", JSON.stringify(loggedUser));
-
-        const updatedProfile = {
-          ...profile,
-          name: data.user.fullName,
-          username: data.user.username,
-          currentMath: Number(data.user.currentMathScore) || profile.currentMath,
-          currentReadingWriting: Number(data.user.currentReadingScore) || profile.currentReadingWriting,
-          targetMath: Number(data.user.targetMathScore) || profile.targetMath,
-          targetReadingWriting: Number(data.user.targetReadingScore) || profile.targetReadingWriting
-        };
-        setProfile(updatedProfile);
-        localStorage.setItem("sat_profile", JSON.stringify(updatedProfile));
+      const result = await signInWithEmailAndPassword(auth, loginCredential.trim(), loginPassword);
+      await reload(result.user);
+      if (!result.user.emailVerified) {
+        setPendingVerificationEmail(result.user.email || loginCredential.trim());
+        setAuthTab("verify");
+        setAuthErrorMsg("Please verify your email using the link in your inbox.");
+        return;
       }
-    } catch (err) {
-      setAuthErrorMsg("Network error during sign in. Please try again.");
+      setUser({ name: result.user.displayName || result.user.email || "SAT Student", email: result.user.email || "" });
+    } catch (err: any) {
+      setAuthErrorMsg(err?.code === "auth/invalid-credential"
+        ? "Incorrect email or password."
+        : err?.message || "Sign in failed.");
     } finally {
       setAuthLoading(false);
     }
   };
 
-  const handleGoogleSignOut = () => {
+  const handleGoogleSignOut = async () => {
+    await signOut(auth);
     setUser(null);
-    setProfile(prev => ({
-      ...prev,
-      name: "",
-      username: ""
-    }));
+    setFirebaseUser(null);
     localStorage.removeItem("sat_user");
-    localStorage.removeItem("sat_profile");
   };
 
   const addQuestionToJournal = (question: Question, selectedIndex: number, notes: string) => {
@@ -1648,59 +1604,19 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Simulated Email Verification Card */}
-              <div className="bg-slate-950 rounded-xl p-4 border border-slate-800 shadow-inner space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Simulated Email Inbox</span>
-                  </div>
-                  <span className="text-[10px] text-slate-500">Just Now</span>
-                </div>
-
-                <div className="text-xs space-y-1">
-                  <div className="text-slate-400"><strong>From:</strong> verify@satpreppro.edu</div>
-                  <div className="text-slate-200"><strong>Subject:</strong> Verify your SAT Prep Pro Student Account</div>
-                </div>
-
-                <div className="p-3 bg-slate-900/90 rounded-lg border border-slate-800 text-xs text-slate-300 space-y-3">
-                  <p>Welcome! Click the verification link below to verify your student email address and enable your account:</p>
-                  
-                  {/* DIRECT VERIFICATION LINK BUTTON */}
-                  <button
-                    onClick={() => handleStudentVerify(pendingVerificationToken)}
-                    disabled={authLoading}
-                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
-                  >
-                    {authLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "🔗 Click Here to Verify Email (Direct Link)"}
-                  </button>
-
-                  <div className="text-[11px] text-slate-400 text-center">
-                    Or use your 6-Digit Verification Code: <strong className="text-indigo-400 font-mono text-xs">{pendingVerificationToken || "123456"}</strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* Manual Verification Code Input Form */}
-              <div className="pt-2 border-t border-slate-800 space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Enter 6-Digit Code Manually</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    maxLength={6}
-                    value={inputVerificationToken}
-                    onChange={(e) => setInputVerificationToken(e.target.value)}
-                    placeholder="e.g. 948201"
-                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono font-bold text-center tracking-widest text-white focus:outline-none focus:border-indigo-500"
-                  />
-                  <button
-                    onClick={() => handleStudentVerify()}
-                    disabled={authLoading}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-xs cursor-pointer transition-all"
-                  >
-                    Verify Code
-                  </button>
-                </div>
+              <div className="bg-slate-950 rounded-xl p-4 border border-slate-800 text-xs text-slate-300 space-y-3">
+                <p>We sent a verification link to your email address. Click the link in your inbox (or spam folder), then return here.</p>
+                <button type="button" onClick={() => handleStudentVerify()} disabled={authLoading}
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold cursor-pointer">
+                  {authLoading ? "Checking..." : "I've verified my email — Continue"}
+                </button>
+                <button type="button" onClick={async () => {
+                  try {
+                    if (!auth.currentUser) { setAuthErrorMsg("Sign in first to resend verification."); return; }
+                    await sendEmailVerification(auth.currentUser);
+                    setVerificationSuccessMsg("Verification email resent. Please check your inbox.");
+                  } catch (err: any) { setAuthErrorMsg(err?.message || "Could not resend verification email."); }
+                }} className="w-full text-indigo-300 underline cursor-pointer">Resend verification email</button>
               </div>
 
               <div className="text-center pt-2">
@@ -1718,14 +1634,14 @@ export default function App() {
           {authTab === "login" && (
             <form onSubmit={handleStudentLogin} className="w-full text-left space-y-3 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email or Username *</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email Address *</label>
                 <input
                   type="text"
                   autoFocus
                   required
                   value={loginCredential}
                   onChange={(e) => setLoginCredential(e.target.value)}
-                  placeholder="e.g. alex@school.edu or arivera2026"
+                  placeholder="e.g. alex@school.edu"
                   className="w-full mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
                 />
               </div>
