@@ -619,25 +619,12 @@ export default function App() {
 
   // --- Google, Apple & Microsoft OAuth Sign-In Utilities ---
   const handleGoogleSignIn = async () => {
+    setAuthErrorMsg("");
     try {
-      const res = await fetch("/api/auth/google-url");
-      const data = await res.json();
-      if (data.configured && data.url) {
-        const width = 500;
-        const height = 655;
-        const left = window.screenX + (window.innerWidth - width) / 2;
-        const top = window.screenY + (window.innerHeight - height) / 2;
-        window.open(
-          data.url,
-          "Google Sign-In",
-          `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,scrollbars=yes`
-        );
-      } else {
-        setShowAuthSetupModal(true);
-      }
-    } catch (err) {
-      console.error("Auth URL fetch error:", err);
-      setShowAuthSetupModal(true);
+      const loggedIn = await signInWithGoogle();
+      setUser({ name: loggedIn.displayName || loggedIn.email || "SAT Student", email: loggedIn.email || "" });
+    } catch (err: any) {
+      setAuthErrorMsg(err?.message || "Google sign-in failed. Check your Firebase Authentication settings.");
     }
   };
 
@@ -1707,7 +1694,7 @@ export default function App() {
               <button
                 id="auth-apple-signin-btn"
                 type="button"
-                onClick={handleAppleSignIn}
+                onClick={() => setAuthErrorMsg("Apple sign-in is not configured. Please use email or Google.")}
                 className="py-2.5 px-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-slate-700 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.01]"
                 title="Sign In with Apple"
               >
@@ -1720,7 +1707,7 @@ export default function App() {
               <button
                 id="auth-microsoft-signin-btn"
                 type="button"
-                onClick={handleMicrosoftSignIn}
+                onClick={() => setAuthErrorMsg("Microsoft sign-in is not configured. Please use email or Google.")}
                 className="py-2.5 px-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-slate-700 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.01]"
                 title="Sign In with Microsoft"
               >
