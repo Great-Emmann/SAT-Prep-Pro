@@ -216,6 +216,7 @@ export default function App() {
   const [widgetSearch, setWidgetSearch] = useState("");
 
   // --- Active Panels / Dialogs / Workflows ---
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"dashboard" | "mock" | "weak" | "progress" | "analytics" | "mistakes" | "practice" | "chat">("dashboard");
   const [activeSubSection, setActiveSubSection] = useState<"schedule" | "goals" | "weak" | "quests" | "mastery">("schedule");
   const [loadingTimetable, setLoadingTimetable] = useState(false);
@@ -1825,8 +1826,10 @@ export default function App() {
 
   return (
     <div id="sat-app-root" className="h-screen w-screen overflow-hidden flex flex-col md:flex-row bg-slate-100 text-slate-900 font-sans antialiased">
+      {sidebarOpen && <button type="button" aria-label="Close navigation" className="fixed inset-0 bg-slate-900/40 z-40" onClick={() => setSidebarOpen(false)} />}
       {/* DESKTOP LEFT SIDEBAR NAVIGATION */}
-      <aside className="hidden md:flex w-60 lg:w-64 bg-white border-r border-slate-200 h-full flex-col justify-between shrink-0 p-4 z-30 shadow-2xs">
+      <aside onClick={(event) => { if ((event.target as HTMLElement).closest("button")) setSidebarOpen(false); }}
+        className={`${sidebarOpen ? "flex" : "hidden"} fixed inset-y-0 left-0 w-60 lg:w-64 bg-white border-r border-slate-200 h-full flex-col justify-between p-4 z-50 shadow-2xl overflow-y-auto`}>
         <div className="space-y-5">
           {/* Brand Logo Header */}
           <div className="flex items-center gap-3 px-2 py-1">
@@ -1975,6 +1978,7 @@ export default function App() {
       <div className="flex-1 h-full flex flex-col min-w-0 overflow-hidden">
         {/* TOP HEADER STATS BAR */}
         <header id="header-section" className="h-14 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 z-20 shadow-2xs">
+          <button type="button" aria-label="Open navigation" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(true)} className="mr-2 shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700 hover:bg-slate-100 cursor-pointer">☰</button>
           <div className="flex items-center gap-2 sm:gap-4 overflow-x-auto no-scrollbar">
             {/* Streak Badge */}
             <div className="flex items-center gap-1.5 bg-orange-50 border border-orange-200 text-orange-700 px-3 py-1 rounded-xl text-xs font-black shrink-0">
@@ -2177,7 +2181,7 @@ export default function App() {
               setMockExamActive={setMockExamActive}
             />
           ) : (
-            <div className="grid grid-cols-12 gap-4 max-w-5xl mx-auto">
+            <div className="grid grid-cols-12 gap-4 w-full max-w-7xl mx-auto min-w-0">
             {/* Widget Category Filter & View Toolbar */}
             <div className="col-span-12 bg-white p-3 rounded-xl border border-slate-200/90 shadow-2xs flex flex-wrap items-center justify-between gap-3 mb-1">
               <div className="flex items-center gap-2 flex-wrap">
