@@ -16,8 +16,13 @@ if (typeof __filename !== "undefined") {
 }
 const currentDirname = currentFilename ? path.dirname(currentFilename) : process.cwd();
 
-const app = express();
+export const app = express();
 app.use(express.json());
+// Disable the legacy in-memory auth routes: they store plaintext passwords
+// and cannot provide durable sessions on serverless hosts.
+app.use("/api/auth", (_req, res) => {
+  res.status(410).json({ error: "Legacy authentication disabled. Use Firebase Authentication." });
+});
 
 // Initialize Gemini API client if key exists and is not placeholder
 const apiKey = process.env.GEMINI_API_KEY;
@@ -821,6 +826,8 @@ async function startServer() {
   });
 }
 
-startServer().catch((err) => {
-  console.error("Failed to start server:", err);
-});
+if (!process.env.VERCEL) {
+  startServer().catch((err) => {
+    console.error("Failed to start server:", err);
+  });
+}
