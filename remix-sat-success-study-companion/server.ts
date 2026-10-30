@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs";
 import dotenv from "dotenv";
-import { installPasswordResetOtpRoutes } from "./passwordResetOtp";
+import { installPasswordResetOtpRoutes } from "./passwordResetOtp.js";
 
 dotenv.config();
 
