@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, updateProfile, reload, signOut } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, updateProfile, reload, signOut } from "firebase/auth";
 import {
   User,
   Calendar,
@@ -257,7 +257,7 @@ export default function App() {
   const [user, setUser] = useState<{ name: string; email: string; picture?: string } | null>(null);
 
   // --- Student Registration & Auth Flow States ---
-  const [authTab, setAuthTab] = useState<"register" | "login" | "verify">("register");
+  const [authTab, setAuthTab] = useState<"register" | "login" | "verify" | "reset">("register");
 
   // Registration form inputs
   const [regFullName, setRegFullName] = useState("");
@@ -279,6 +279,7 @@ export default function App() {
   // Login form inputs
   const [loginCredential, setLoginCredential] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [resetEmail, setResetEmail] = useState("");
   const [authErrorMsg, setAuthErrorMsg] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -762,6 +763,36 @@ export default function App() {
       setAuthErrorMsg(err?.code === "auth/invalid-credential"
         ? "Incorrect email or password."
         : err?.message || "Sign in failed.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthErrorMsg("");
+    setVerificationSuccessMsg("");
+    const email = resetEmail.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setAuthErrorMsg("Enter the email address you used to create your account.");
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      // Do not disclose whether an email is registered.
+      setVerificationSuccessMsg("If an account exists for that email, you'll receive a password reset link. Check your inbox and spam folder.");
+      setAuthTab("login");
+      setLoginCredential(email);
+      setLoginPassword("");
+    } catch (err: any) {
+      if (err?.code === "auth/too-many-requests") {
+        setAuthErrorMsg("Too many attempts. Please try again later.");
+      } else if (err?.code === "auth/invalid-email") {
+        setAuthErrorMsg("Please enter a valid email address.");
+      } else {
+        setAuthErrorMsg(err?.message || "Could not send the password reset email. Please try again.");
+      }
     } finally {
       setAuthLoading(false);
     }
@@ -1645,6 +1676,10 @@ export default function App() {
                 />
               </div>
 
+              <div className="text-right">
+                <button type="button" onClick={() => { setResetEmail(loginCredential); setAuthErrorMsg(""); setVerificationSuccessMsg(""); setAuthTab("reset"); }} className="text-xs font-bold text-indigo-300 hover:text-indigo-200 hover:underline cursor-pointer">Forgot password?</button>
+              </div>
+
               <button
                 type="submit"
                 disabled={authLoading}
@@ -1665,6 +1700,28 @@ export default function App() {
                   </button>
                 </p>
               </div>
+            </form>
+          )}
+
+          {/* PASSWORD RESET FORM VIEW */}
+          {authTab === "reset" && (
+            <form onSubmit={handlePasswordReset} className="w-full text-left space-y-4 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+              <div>
+                <h2 className="text-sm font-black text-indigo-300">Reset your password</h2>
+                <p className="text-xs text-slate-400 mt-2">Enter the email address associated with your SAT Prep Pro account. We'll send you a secure reset link.</p>
+              </div>
+              <div>
+                <label htmlFor="sat-reset-email" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email Address *</label>
+                <input id="sat-reset-email" type="email" autoComplete="email" required autoFocus value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)} placeholder="you@example.com"
+                  className="w-full mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500" />
+              </div>
+              <button type="submit" disabled={authLoading}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-xl font-extrabold text-xs shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2">
+                {authLoading ? "Sending reset email..." : "Send Password Reset Link"}
+              </button>
+              <button type="button" onClick={() => { setAuthTab("login"); setAuthErrorMsg(""); }}
+                className="w-full text-xs text-slate-400 hover:text-indigo-300 font-bold cursor-pointer">← Back to Sign In</button>
             </form>
           )}
 
