@@ -218,6 +218,7 @@ export default function App() {
   const [widgetSearch, setWidgetSearch] = useState("");
 
   // --- Active Panels / Dialogs / Workflows ---
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"dashboard" | "mock" | "weak" | "progress" | "analytics" | "mistakes" | "practice" | "chat">("dashboard");
   const [activeSubSection, setActiveSubSection] = useState<"schedule" | "goals" | "weak" | "quests" | "mastery">("schedule");
   const [loadingTimetable, setLoadingTimetable] = useState(false);
@@ -1846,11 +1847,160 @@ export default function App() {
 
   return (
     <div id="sat-app-root" className="h-screen w-full min-w-0 overflow-hidden flex flex-col bg-slate-100 text-slate-900 font-sans antialiased">
+      {sidebarOpen && <button type="button" aria-label="Close navigation" className="fixed inset-0 bg-slate-900/40 z-40" onClick={() => setSidebarOpen(false)} />}
+      {/* DESKTOP LEFT SIDEBAR NAVIGATION */}
+      <aside onClick={(event) => { if ((event.target as HTMLElement).closest("button")) setSidebarOpen(false); }}
+        className={`${sidebarOpen ? "flex" : "hidden"} fixed inset-y-0 left-0 w-60 lg:w-64 bg-white border-r border-slate-200 h-full flex-col justify-between p-4 z-50 shadow-2xl overflow-y-auto`}>
+        <div className="space-y-5">
+          {/* Brand Logo Header */}
+          <div className="flex items-center gap-3 px-2 py-1">
+            <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-md border-2 border-indigo-200 shrink-0 bg-white p-0.5">
+              <img src="/app-icon.jpg" alt="SAT Pro Brain Icon" className="w-full h-full object-cover rounded-xl" referrerPolicy="no-referrer" />
+            </div>
+            <div>
+              <h1 className="text-base font-black tracking-tight text-slate-800 flex items-center gap-1 leading-none">
+                SAT PREP PRO
+              </h1>
+              <span className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded uppercase mt-1 inline-block">
+                DIGITAL SAT PLATFORM
+              </span>
+            </div>
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="space-y-1.5">
+            <button
+              id="tab-dashboard"
+              onClick={() => { setActiveTab("dashboard"); setMockExamActive(false); }}
+              className={`w-full px-3.5 py-2.5 rounded-2xl font-black text-xs flex items-center gap-3 transition-all cursor-pointer border-b-2 ${
+                activeTab === "dashboard"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-500 shadow-2xs"
+                  : "bg-transparent text-slate-600 border-transparent hover:bg-slate-100"
+              }`}
+            >
+              <span className="text-base">🏠</span>
+              <span>LEARN PATH</span>
+            </button>
+
+            <button
+              id="tab-practice"
+              onClick={() => { setActiveTab("practice"); setMockExamActive(false); }}
+              className={`w-full px-3.5 py-2.5 rounded-2xl font-black text-xs flex items-center gap-3 transition-all cursor-pointer border-b-2 ${
+                activeTab === "practice"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-500 shadow-2xs"
+                  : "bg-transparent text-slate-600 border-transparent hover:bg-slate-100"
+              }`}
+            >
+              <span className="text-base">🎯</span>
+              <span>PRACTICE DRILLS</span>
+            </button>
+
+            <button
+              id="tab-mock"
+              onClick={() => { setActiveTab("mock"); if(!mockExamActive) setExamStage("intro"); }}
+              className={`w-full px-3.5 py-2.5 rounded-2xl font-black text-xs flex items-center gap-3 transition-all cursor-pointer border-b-2 ${
+                activeTab === "mock"
+                  ? "bg-indigo-50 text-indigo-700 border-indigo-500 shadow-2xs"
+                  : "bg-transparent text-slate-600 border-transparent hover:bg-slate-100"
+              }`}
+            >
+              <span className="text-base">⏱️</span>
+              <span>MOCK SAT EXAM</span>
+            </button>
+
+            <button
+              id="tab-mistakes"
+              onClick={() => { setActiveTab("mistakes"); setMockExamActive(false); }}
+              className={`w-full px-3.5 py-2.5 rounded-2xl font-black text-xs flex items-center gap-3 transition-all cursor-pointer border-b-2 ${
+                activeTab === "mistakes"
+                  ? "bg-amber-50 text-amber-700 border-amber-500 shadow-2xs"
+                  : "bg-transparent text-slate-600 border-transparent hover:bg-slate-100"
+              }`}
+            >
+              <span className="text-base">📔</span>
+              <span>MISTAKE JOURNAL</span>
+            </button>
+
+            <button
+              id="tab-chat"
+              onClick={() => { setActiveTab("chat"); setMockExamActive(false); }}
+              className={`w-full px-3.5 py-2.5 rounded-2xl font-black text-xs flex items-center gap-3 transition-all cursor-pointer border-b-2 ${
+                activeTab === "chat"
+                  ? "bg-purple-50 text-purple-700 border-purple-500 shadow-2xs"
+                  : "bg-transparent text-slate-600 border-transparent hover:bg-slate-100"
+              }`}
+            >
+              <span className="text-base">🤖</span>
+              <span>AI TUTOR CHAT</span>
+            </button>
+
+            <button
+              id="tab-weak"
+              onClick={() => { setActiveTab("weak"); setMockExamActive(false); }}
+              className={`w-full px-3.5 py-2.5 rounded-2xl font-black text-xs flex items-center gap-3 transition-all cursor-pointer border-b-2 ${
+                activeTab === "weak"
+                  ? "bg-rose-50 text-rose-700 border-rose-500 shadow-2xs"
+                  : "bg-transparent text-slate-600 border-transparent hover:bg-slate-100"
+              }`}
+            >
+              <span className="text-base">🔍</span>
+              <span>WEAK AREAS</span>
+            </button>
+
+            <button
+              id="tab-progress"
+              onClick={() => { setActiveTab("progress"); setMockExamActive(false); }}
+              className={`w-full px-3.5 py-2.5 rounded-2xl font-black text-xs flex items-center gap-3 transition-all cursor-pointer border-b-2 ${
+                activeTab === "progress"
+                  ? "bg-blue-50 text-blue-700 border-blue-500 shadow-2xs"
+                  : "bg-transparent text-slate-600 border-transparent hover:bg-slate-100"
+              }`}
+            >
+              <span className="text-base">📈</span>
+              <span>PROGRESS REPORT</span>
+            </button>
+
+            <button
+              id="tab-analytics"
+              onClick={() => { setActiveTab("analytics"); setMockExamActive(false); }}
+              className={`w-full px-3.5 py-2.5 rounded-2xl font-black text-xs flex items-center gap-3 transition-all cursor-pointer border-b-2 ${
+                activeTab === "analytics"
+                  ? "bg-teal-50 text-teal-700 border-teal-500 shadow-2xs"
+                  : "bg-transparent text-slate-600 border-transparent hover:bg-slate-100"
+              }`}
+            >
+              <span className="text-base">📊</span>
+              <span>ANALYTICS & STATS</span>
+            </button>
+          </nav>
+        </div>
+
+        {/* Sidebar Footer Extras */}
+        <div className="space-y-2 pt-3 border-t border-slate-200">
+          <button
+            id="btn-get-apk-sidebar"
+            onClick={() => setShowApkModal(true)}
+            className="w-full py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-[11px] rounded-xl border border-emerald-200 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+          >
+            <Smartphone size={13} className="text-emerald-600" />
+            <span>Get APK / Mobile App</span>
+          </button>
+
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-center">
+            <p className="text-[9px] font-bold text-slate-400 uppercase">SAT Countdown</p>
+            <p className="text-xs font-black text-indigo-600 mt-0.5">
+              {profile.testDate} • {calculateDaysLeft()} Days Left
+            </p>
+          </div>
+        </div>
+      </aside>
+
       {/* MAIN CONTENT AREA CONTAINER */}
       <div className="flex-1 min-h-0 w-full flex flex-col min-w-0 overflow-hidden">
         {/* TOP HEADER STATS BAR */}
-        <header id="header-section" className="min-h-14 bg-white border-b border-slate-200 px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 shrink-0 z-20 shadow-2xs">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-4 overflow-x-auto no-scrollbar">
+        <header id="header-section" className="h-14 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 z-20 shadow-2xs">
+          <button type="button" aria-label="Open navigation" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(true)} className="mr-2 shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700 hover:bg-slate-100 cursor-pointer">☰</button>
+          <div className="flex items-center gap-2 sm:gap-4 overflow-x-auto no-scrollbar">
             {/* Streak Badge */}
             <div className="flex items-center gap-1.5 bg-orange-50 border border-orange-200 text-orange-700 px-3 py-1 rounded-xl text-xs font-black shrink-0">
               <Flame size={15} className="text-orange-500 fill-orange-500 animate-pulse" />
@@ -1870,7 +2020,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 min-w-0 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Quick Access SAT Tools */}
             <button
               id="btn-quick-reference"
@@ -1950,32 +2100,8 @@ export default function App() {
           </div>
         </header>
 
-        {/* Sidebar-free navigation — all sections remain available. */}
-        <nav aria-label="SAT Prep Pro sections" className="w-full shrink-0 border-b border-slate-200 bg-white px-3 sm:px-6 py-2 flex items-center gap-2 overflow-x-auto no-scrollbar">
-          {([
-            ["dashboard", "🏠", "Learn Path"], ["practice", "🎯", "Practice"],
-            ["mock", "⏱️", "Mock SAT"], ["mistakes", "📔", "Mistake Journal"],
-            ["chat", "🤖", "AI Tutor"], ["weak", "🔍", "Weak Areas"],
-            ["progress", "📈", "Progress"], ["analytics", "📊", "Analytics"]
-          ] as const).map(([tab, emoji, label]) => (
-            <button key={tab} type="button" aria-current={activeTab === tab ? "page" : undefined}
-              onClick={() => {
-                setActiveTab(tab);
-                if (tab === "mock") {
-                  if (!mockExamActive) setExamStage("intro");
-                } else {
-                  setMockExamActive(false);
-                }
-              }}
-              className={`shrink-0 px-3 py-2 rounded-xl text-xs font-extrabold whitespace-nowrap border transition-colors cursor-pointer ${activeTab === tab
-                ? "border-indigo-300 bg-indigo-50 text-indigo-700"
-                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>
-              <span aria-hidden="true">{emoji}</span> {label}
-            </button>
-          ))}
-        </nav>
         {/* CENTER SCROLLABLE SCREEN CONTENT AREA */}
-        <main className="flex-1 min-h-0 w-full min-w-0 overflow-y-auto overflow-x-hidden p-3 sm:p-6 bg-slate-50/60 pb-6">
+        <main className="flex-1 min-h-0 w-full min-w-0 overflow-y-auto p-4 sm:p-6 bg-slate-50/60 pb-20 md:pb-6">
           {/* Daily Study Notification Banner */}
           {activeTab === "dashboard" && reminderSettings.enabled && !hasLoggedToday && !reminderBannerDismissed && (
             <div
@@ -2076,7 +2202,7 @@ export default function App() {
               setMockExamActive={setMockExamActive}
             />
           ) : (
-            <div className="grid grid-cols-12 gap-4 w-full max-w-none min-w-0">
+            <div className="grid grid-cols-12 gap-4 w-full max-w-7xl mx-auto min-w-0">
             {/* Widget Category Filter & View Toolbar */}
             <div className="col-span-12 bg-white p-3 rounded-xl border border-slate-200/90 shadow-2xs flex flex-wrap items-center justify-between gap-3 mb-1">
               <div className="flex items-center gap-2 flex-wrap">
@@ -3929,8 +4055,61 @@ export default function App() {
       </main>
     </div>
 
+    {/* MOBILE BOTTOM NAVIGATION BAR */}
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-50 flex items-center justify-around px-2 shadow-lg">
+      <button
+        onClick={() => { setActiveTab("dashboard"); setMockExamActive(false); }}
+        className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all cursor-pointer ${
+          activeTab === "dashboard" ? "text-emerald-600 font-black" : "text-slate-400 font-bold"
+        }`}
+      >
+        <span className="text-lg">🏠</span>
+        <span className="text-[9px] uppercase tracking-wider mt-0.5">Learn</span>
+      </button>
+
+      <button
+        onClick={() => { setActiveTab("practice"); setMockExamActive(false); }}
+        className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all cursor-pointer ${
+          activeTab === "practice" ? "text-emerald-600 font-black" : "text-slate-400 font-bold"
+        }`}
+      >
+        <span className="text-lg">🎯</span>
+        <span className="text-[9px] uppercase tracking-wider mt-0.5">Practice</span>
+      </button>
+
+      <button
+        onClick={() => { setActiveTab("mock"); if(!mockExamActive) setExamStage("intro"); }}
+        className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all cursor-pointer ${
+          activeTab === "mock" ? "text-indigo-600 font-black" : "text-slate-400 font-bold"
+        }`}
+      >
+        <span className="text-lg">⏱️</span>
+        <span className="text-[9px] uppercase tracking-wider mt-0.5">Mock</span>
+      </button>
+
+      <button
+        onClick={() => { setActiveTab("mistakes"); setMockExamActive(false); }}
+        className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all cursor-pointer ${
+          activeTab === "mistakes" ? "text-amber-600 font-black" : "text-slate-400 font-bold"
+        }`}
+      >
+        <span className="text-lg">📔</span>
+        <span className="text-[9px] uppercase tracking-wider mt-0.5">Journal</span>
+      </button>
+
+      <button
+        onClick={() => { setActiveTab("chat"); setMockExamActive(false); }}
+        className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all cursor-pointer ${
+          activeTab === "chat" ? "text-purple-600 font-black" : "text-slate-400 font-bold"
+        }`}
+      >
+        <span className="text-lg">🤖</span>
+        <span className="text-[9px] uppercase tracking-wider mt-0.5">AI Chat</span>
+      </button>
+    </nav>
+
       {/* Bottom Action / Metadata Bar */}
-      <footer id="footer-section" className="w-full shrink-0 bg-white border-t border-slate-200 px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <footer id="footer-section" className="w-full shrink-0 bg-white border-t border-slate-200 px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex flex-wrap gap-4 text-center sm:text-left">
           <div className="flex flex-col">
             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Recent Mock Exam</span>
