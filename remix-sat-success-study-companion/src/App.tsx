@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, updateProfile, reload, signOut } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, updateProfile, reload, signOut } from "firebase/auth";
 import {
   User,
   Calendar,
@@ -280,6 +280,10 @@ export default function App() {
   const [loginCredential, setLoginCredential] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [resetEmail, setResetEmail] = useState("");
+  const [resetStep, setResetStep] = useState<"request" | "verify">("request");
+  const [resetCode, setResetCode] = useState("");
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
   const [authErrorMsg, setAuthErrorMsg] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -768,31 +772,58 @@ export default function App() {
     }
   };
 
+  // OTP codes are created and verified only on the server; never expose secrets in the browser.
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthErrorMsg("");
     setVerificationSuccessMsg("");
-    const email = resetEmail.trim();
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const email = resetEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setAuthErrorMsg("Enter the email address you used to create your account.");
       return;
     }
+    if (resetStep === "verify") {
+      if (!/^\d{6}$/.test(resetCode.trim())) {
+        setAuthErrorMsg("Enter the six-digit code from your email.");
+        return;
+      }
+      if (resetNewPassword.length < 8) {
+        setAuthErrorMsg("Your new password must contain at least eight characters.");
+        return;
+      }
+      if (resetNewPassword !== resetConfirmPassword) {
+        setAuthErrorMsg("New passwords do not match.");
+        return;
+      }
+    }
     setAuthLoading(true);
     try {
-      await sendPasswordResetEmail(auth, email);
-      // Do not disclose whether an email is registered.
-      setVerificationSuccessMsg("If an account exists for that email, you'll receive a password reset link. Check your inbox and spam folder.");
-      setAuthTab("login");
-      setLoginCredential(email);
-      setLoginPassword("");
-    } catch (err: any) {
-      if (err?.code === "auth/too-many-requests") {
-        setAuthErrorMsg("Too many attempts. Please try again later.");
-      } else if (err?.code === "auth/invalid-email") {
-        setAuthErrorMsg("Please enter a valid email address.");
-      } else {
-        setAuthErrorMsg(err?.message || "Could not send the password reset email. Please try again.");
+      const response = await fetch(resetStep === "request" ? "/api/password-reset/request" : "/api/password-reset/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(resetStep === "request"
+          ? { email }
+          : { email, code: resetCode.trim(), newPassword: resetNewPassword })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || "Unable to reset password at the moment.");
       }
+      if (resetStep === "request") {
+        setResetStep("verify");
+        setVerificationSuccessMsg("If this email belongs to a SAT Prep Pro account, we'll send a six-digit code. Check your inbox and spam folder.");
+      } else {
+        setResetStep("request");
+        setResetCode("");
+        setResetNewPassword("");
+        setResetConfirmPassword("");
+        setLoginCredential(email);
+        setLoginPassword("");
+        setAuthTab("login");
+        setVerificationSuccessMsg("Password updated successfully. You can now sign in.");
+      }
+    } catch (err: any) {
+      setAuthErrorMsg(err?.message || "Unable to reset password. Please try again.");
     } finally {
       setAuthLoading(false);
     }
@@ -1677,7 +1708,7 @@ export default function App() {
               </div>
 
               <div className="text-right">
-                <button type="button" onClick={() => { setResetEmail(loginCredential); setAuthErrorMsg(""); setVerificationSuccessMsg(""); setAuthTab("reset"); }} className="text-xs font-bold text-indigo-300 hover:text-indigo-200 hover:underline cursor-pointer">Forgot password?</button>
+                <button type="button" onClick={() => { setResetEmail(loginCredential); setResetStep("request"); setResetCode(""); setResetNewPassword(""); setResetConfirmPassword(""); setAuthErrorMsg(""); setVerificationSuccessMsg(""); setAuthTab("reset"); }} className="text-xs font-bold text-indigo-300 hover:text-indigo-200 hover:underline cursor-pointer">Forgot password?</button>
               </div>
 
               <button
@@ -1708,19 +1739,49 @@ export default function App() {
             <form onSubmit={handlePasswordReset} className="w-full text-left space-y-4 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
               <div>
                 <h2 className="text-sm font-black text-indigo-300">Reset your password</h2>
-                <p className="text-xs text-slate-400 mt-2">Enter the email address associated with your SAT Prep Pro account. We'll send you a secure reset link.</p>
+                <p className="text-xs text-slate-400 mt-2">
+                  {resetStep === "request"
+                    ? "Enter your account email. SAT Prep Pro will send you a six-digit one-time code."
+                    : "Enter the six-digit code from your email, then choose a new password. The code expires after 10 minutes."}
+                </p>
               </div>
               <div>
                 <label htmlFor="sat-reset-email" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email Address *</label>
-                <input id="sat-reset-email" type="email" autoComplete="email" required autoFocus value={resetEmail}
+                <input id="sat-reset-email" type="email" autoComplete="email" required autoFocus={resetStep === "request"}
+                  readOnly={resetStep === "verify"} value={resetEmail}
                   onChange={(e) => setResetEmail(e.target.value)} placeholder="you@example.com"
                   className="w-full mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500" />
               </div>
+              {resetStep === "verify" && (
+                <>
+                  <div>
+                    <label htmlFor="sat-reset-code" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">6-Digit One-Time Code *</label>
+                    <input id="sat-reset-code" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+                      required value={resetCode} onChange={(e) => setResetCode(e.target.value.replace(/\D/g, ""))}
+                      placeholder="123456"
+                      className="w-full mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white tracking-widest text-center placeholder:text-slate-500 focus:outline-none focus:border-indigo-500" />
+                  </div>
+                  <div>
+                    <label htmlFor="sat-reset-password" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">New Password *</label>
+                    <input id="sat-reset-password" type="password" autoComplete="new-password" minLength={8} required
+                      value={resetNewPassword} onChange={(e) => setResetNewPassword(e.target.value)}
+                      className="w-full mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500" />
+                  </div>
+                  <div>
+                    <label htmlFor="sat-reset-password-confirm" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Confirm New Password *</label>
+                    <input id="sat-reset-password-confirm" type="password" autoComplete="new-password" minLength={8} required
+                      value={resetConfirmPassword} onChange={(e) => setResetConfirmPassword(e.target.value)}
+                      className="w-full mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500" />
+                  </div>
+                  <button type="button" onClick={() => { setResetStep("request"); setAuthErrorMsg(""); setVerificationSuccessMsg(""); }}
+                    className="w-full text-xs text-indigo-300 hover:text-indigo-200 underline font-bold cursor-pointer">Request a new code</button>
+                </>
+              )}
               <button type="submit" disabled={authLoading}
                 className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-xl font-extrabold text-xs shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2">
-                {authLoading ? "Sending reset email..." : "Send Password Reset Link"}
+                {authLoading ? "Please wait..." : resetStep === "request" ? "Send Verification Code" : "Verify Code & Reset Password"}
               </button>
-              <button type="button" onClick={() => { setAuthTab("login"); setAuthErrorMsg(""); }}
+              <button type="button" onClick={() => { setAuthTab("login"); setResetStep("request"); setAuthErrorMsg(""); setVerificationSuccessMsg(""); }}
                 className="w-full text-xs text-slate-400 hover:text-indigo-300 font-bold cursor-pointer">← Back to Sign In</button>
             </form>
           )}
