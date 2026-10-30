@@ -22,12 +22,35 @@ function services() {
   const secret = process.env.PASSWORD_RESET_OTP_SECRET;
   const resendApiKey = process.env.RESEND_API_KEY;
   const sender = process.env.RESET_EMAIL_FROM;
-  if (!account || !secret || secret.length < 32 || !resendApiKey || !sender) {
-    throw new Error("Password-reset OTP environment configuration is incomplete.");
+  const missing = [
+    !account && "FIREBASE_SERVICE_ACCOUNT_JSON",
+    (!secret || secret.length < 32) && "PASSWORD_RESET_OTP_SECRET (at least 32 characters)",
+    !resendApiKey && "RESEND_API_KEY",
+    !sender && "RESET_EMAIL_FROM"
+  ].filter(Boolean);
+  if (missing.length) {
+    // Only names of missing configuration are logged, never their values.
+    console.error("OTP_CONFIG_MISSING:", missing.join(", "));
+    throw new Error("OTP_CONFIG_MISSING");
   }
   if (!getApps().length) {
-    const parsed = JSON.parse(account);
-    initializeApp({ credential: cert(parsed) });
+    let parsed: any;
+    try {
+      parsed = JSON.parse(account!);
+    } catch {
+      console.error("OTP_FIREBASE_JSON_INVALID: service-account value must be valid JSON.");
+      throw new Error("OTP_FIREBASE_JSON_INVALID");
+    }
+    if (!parsed?.project_id || !parsed?.client_email || !parsed?.private_key) {
+      console.error("OTP_FIREBASE_JSON_FIELDS_MISSING: service account requires project_id, client_email, private_key.");
+      throw new Error("OTP_FIREBASE_JSON_FIELDS_MISSING");
+    }
+    try {
+      initializeApp({ credential: cert(parsed) });
+    } catch {
+      console.error("OTP_FIREBASE_ADMIN_INIT_FAILED: verify the service-account JSON in Vercel.");
+      throw new Error("OTP_FIREBASE_ADMIN_INIT_FAILED");
+    }
   }
   const databaseId = process.env.FIREBASE_FIRESTORE_DATABASE_ID || "(default)";
   return { db: getFirestore(getApps()[0], databaseId), adminAuth: getAuth(), secret, resendApiKey, sender };
@@ -107,8 +130,14 @@ export function installPasswordResetOtpRoutes(app: Express) {
       }
       return res.json({ success: true });
     } catch (error) {
-      console.error("OTP request failed:", error instanceof Error ? error.message : "Unknown error");
-      return res.status(503).json({ error: "Password reset is not available right now. Please try again later." });
+      const diagnosticCode = error instanceof Error && /^OTP_(CONFIG_MISSING|FIREBASE_JSON_INVALID|FIREBASE_JSON_FIELDS_MISSING|FIREBASE_ADMIN_INIT_FAILED)$/.test(error.message)
+        ? error.message : "OTP_BACKEND_ERROR";
+      console.error("OTP request failed:", diagnosticCode, diagnosticCode === "OTP_BACKEND_ERROR" && error instanceof Error ? error.message : "");
+      // Safe public code to troubleshoot without revealing API keys or tokens.
+      return res.status(503).json({
+        error: "Password reset is not available right now. Please try again later.",
+        code: diagnosticCode
+      });
     }
   });
 
