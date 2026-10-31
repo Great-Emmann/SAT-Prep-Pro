@@ -40,50 +40,80 @@ async function chatHandler(req: Request, res: Response) {
     return res.status(503).json({ error: "AI tutoring is not configured yet. Add GEMINI_API_KEY to the Production environment in Vercel.", code: "CHAT_GEMINI_KEY_MISSING" });
   }
   const body = req.body || {};
-  const history = Array.isArray(body.messages) ? body.messages.slice(-16) : [];
+
+  const history = Array.isArray(body.messages) ? body.messages.slice(-8) : [];
   const conversation = history.map((m: any) => ({
     role: m?.sender === "user" || m?.role === "user" ? "Student" : "Tutor",
-    text: String(m?.text || m?.content || "").slice(0, 3000)
-  })).filter((m: {text: string}) => m.text.trim());
+    text: String(m?.text || m?.content || "").slice(0, 1200)
+  })).filter((m: { text: string }) => m.text.trim());
   if (!conversation.length) return res.status(400).json({ error: "Enter a message to send." });
+
   const requestedModel = String(body.model || "");
-  const supportedModels = ["gemini-3.5-flash", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-3.5-flash-lite"];
-  // Map the selected model to a supported fallback when a particular model is unavailable.
-  const model = supportedModels.includes(requestedModel) ? requestedModel : "gemini-3.8-flash";
-  const systemInstruction = String(body.systemInstruction || "You are a friendly Digital SAT Math, Reading and Writing tutor. Explain answers clearly, step by step, and help students learn.").slice(0, 1200);
+  const supportedModels = ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite"];
+  const model = supportedModels.includes(requestedModel) ? requestedModel : "gemini-3.5-flash-lite";
+  const systemInstruction = String(body.systemInstruction ||
+    "You are a supportive SAT tutor. Teach Math and Reading & Writing clearly with concise, step-by-step explanations.").slice(0, 800);
   const profile = body.profile || {};
-  const profileHint = profile.name ? "Student name: " + String(profile.name).slice(0, 80) + "\n" : "";
+  const profileHint = profile.name ? "Student name: " + String(profile.name).slice(0, 60) + "\n" : "";
   const prompt = systemInstruction + "\n" + profileHint +
-    "\nExplain Digital SAT concepts accurately; if unsure, say so. Never claim to have checked live test dates without a search tool.\nConversation:\n" +
-    conversation.map((m: {role:string,text:string}) => m.role + ": " + m.text).join("\n") + "\nTutor:";
+    "\nAnswer the latest question directly and accurately in under 220 words. Do not claim to have searched the web.\nConversation:\n" +
+    conversation.map((m: { role: string; text: string }) => m.role + ": " + m.text).join("\n") + "\nTutor:";
+
+  // Bound provider latency so a stuck Gemini request never leaves the UI spinning.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 18000);
+  const started = Date.now();
   try {
-    const { GoogleGenAI } = await import("@google/genai");
-    const ai = new GoogleGenAI({ apiKey: key });
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-      config: { maxOutputTokens: 1500 }
-    });
-    if (!response.text?.trim()) throw new Error("Empty Gemini response");
-    return res.json({ text: response.text, sources: [], modelUsed: model });
+    // Direct REST request avoids SDK initialization overhead in a cold serverless function.
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: 650, temperature: 0.45 }
+        }),
+        signal: controller.signal
+      }
+    );
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const providerMessage = String(result?.error?.message || "");
+      const code = response.status === 429 || /quota|resource_exhausted/i.test(providerMessage)
+        ? "CHAT_QUOTA_EXCEEDED"
+        : response.status === 404 || /model.*not found|not supported/i.test(providerMessage)
+        ? "CHAT_MODEL_UNAVAILABLE"
+        : response.status === 400 || response.status === 401 || response.status === 403
+        ? "CHAT_KEY_OR_REQUEST_REJECTED" : "CHAT_PROVIDER_ERROR";
+      console.error("SAT_CHAT_FAILURE", code, "status", response.status, "durationMs", Date.now() - started);
+      return res.status(code === "CHAT_QUOTA_EXCEEDED" ? 429 : 503).json({
+        error: code === "CHAT_QUOTA_EXCEEDED" ? "Gemini's usage quota is exhausted. Try again later."
+          : code === "CHAT_MODEL_UNAVAILABLE" ? "This Gemini model is unavailable. Select Flash-Lite in chat settings."
+          : code === "CHAT_KEY_OR_REQUEST_REJECTED" ? "Gemini rejected this request. Check your API key's access or try another model."
+          : "Gemini is temporarily unavailable. Try again.",
+        code
+      });
+    }
+    const reply = (result?.candidates?.[0]?.content?.parts || [])
+      .filter((part: any) => typeof part?.text === "string" && !part?.thought)
+      .map((part: any) => part.text).join("").trim();
+    if (!reply) {
+      console.error("SAT_CHAT_EMPTY_RESPONSE", "durationMs", Date.now() - started);
+      return res.status(503).json({ error: "Gemini returned no answer. Try again or choose another model.", code: "CHAT_EMPTY_RESPONSE" });
+    }
+    console.info("SAT_CHAT_SUCCESS", "model", model, "durationMs", Date.now() - started);
+    return res.json({ text: reply, sources: [], modelUsed: model });
   } catch (error: any) {
-    const status = Number(error?.status || error?.statusCode || 0);
-    const message = String(error?.message || "");
-    const code = status === 429 || /quota|resource_exhausted/i.test(message)
-      ? "CHAT_QUOTA_EXCEEDED"
-      : status === 404 || /model.*not found|not supported/i.test(message)
-      ? "CHAT_MODEL_UNAVAILABLE"
-      : status === 401 || status === 403 || /api.key|permission.denied/i.test(message)
-      ? "CHAT_KEY_REJECTED"
-      : "CHAT_PROVIDER_ERROR";
-    console.error("SAT_CHAT_FAILURE", code, "status", status);
-    return res.status(code === "CHAT_QUOTA_EXCEEDED" ? 429 : 503).json({
-      error: code === "CHAT_QUOTA_EXCEEDED" ? "The AI provider has reached its usage limit. Try again later."
-        : code === "CHAT_MODEL_UNAVAILABLE" ? "This AI model is unavailable. Select another model in chat settings."
-        : code === "CHAT_KEY_REJECTED" ? "The AI API key isn't authorized. Check your Gemini API key in Vercel."
-        : "The AI tutor couldn't connect to Gemini right now. Please retry.",
-      code
+    const timedOut = controller.signal.aborted || error?.name === "AbortError";
+    console.error("SAT_CHAT_FAILURE", timedOut ? "CHAT_TIMEOUT" : "CHAT_NETWORK_ERROR", "durationMs", Date.now() - started);
+    return res.status(timedOut ? 504 : 503).json({
+      error: timedOut ? "Gemini took too long to answer. Please retry or choose Flash-Lite."
+        : "Couldn't connect to Gemini. Please try again.",
+      code: timedOut ? "CHAT_TIMEOUT" : "CHAT_NETWORK_ERROR"
     });
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
