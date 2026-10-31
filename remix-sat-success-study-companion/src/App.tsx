@@ -296,6 +296,19 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Open the existing student-profile editor from any page.
+  const openStudentProfile = () => {
+    setWidgetFilter("profile");
+    setWidgetSearch("");
+    setProfileExpanded(true);
+    setProfileSaveStatus("");
+    setMockExamActive(false);
+    setActiveTab("progress");
+    window.setTimeout(() => {
+      document.getElementById("profile-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
+  };
+
   // --- Google Sign-In & Mistake Journal States ---
   const [user, setUser] = useState<{ name: string; email: string; picture?: string } | null>(null);
 
@@ -2108,6 +2121,24 @@ export default function App() {
               )}
             </button>
 
+            {/* Quick account / student profile access from every tab */}
+            <button
+              id="btn-open-student-profile"
+              type="button"
+              onClick={openStudentProfile}
+              aria-label="Open and edit student profile"
+              title="View and edit your student profile"
+              className="flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-2 py-1.5 text-indigo-800 hover:bg-indigo-100 transition-colors cursor-pointer"
+            >
+              <span className="flex w-6 h-6 items-center justify-center rounded-full bg-indigo-600 text-white text-xs font-semibold" aria-hidden="true">
+                {profile.emoji || "🎓"}
+              </span>
+              <span className="hidden xl:inline text-xs font-bold max-w-24 truncate">
+                {profile.name || "My Profile"}
+              </span>
+              <Edit size={12} aria-hidden="true" />
+            </button>
+
             {/* Firebase Auth Button */}
             <button
               id="btn-firebase-auth"
@@ -2319,6 +2350,7 @@ export default function App() {
             (!widgetSearch || "student profile name username test date target score math reading writing focus".includes(widgetSearch.toLowerCase())) && (
               <WidgetCard
                 id="profile-card"
+                collapsible={false}
                 title="Student Profile"
                 subtitle="Score Targets & Prep Preferences"
                 icon={User}
