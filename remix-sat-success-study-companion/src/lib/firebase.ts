@@ -93,6 +93,31 @@ export async function saveUserProfile(userId: string, profileData: any): Promise
   }, { merge: true });
 }
 
+// Persist one student's learning state in their authenticated Firestore document.
+// A single merged write prevents different browser sessions from accidentally
+// replacing the account's existing user document.
+export async function fetchUserStudyState(userId: string): Promise<Record<string, any> | null> {
+  if (!userId) return null;
+  const snapshot = await getDoc(doc(db, "users", userId));
+  return snapshot.exists() ? snapshot.data() as Record<string, any> : null;
+}
+
+export async function saveUserStudyState(userId: string, data: {
+  profile: any;
+  scoresHistory: any[];
+  mastery: any;
+  streak: number;
+  streakLoggedToday: boolean;
+  timetable: any;
+  weeklyChallenges: any[];
+}): Promise<void> {
+  if (!userId || auth.currentUser?.uid !== userId) throw new Error("Sign in before saving learning progress.");
+  await setDoc(doc(db, "users", userId), {
+    ...data,
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
+}
+
 // Save or sync user SAT profile to Firestore
 export async function syncUserProfile(userId: string, profileData: any) {
   if (!userId) return;
