@@ -62,8 +62,8 @@ const ROLES = [
 
 const MODELS = [
   {
-    id: "gemini-3.5-flash",
-    name: "Gemini 3.5 Flash",
+    id: "gemini-3.8-flash",
+    name: "Gemini 3.8 Flash",
     tag: "General & Search",
     badgeColor: "bg-indigo-100 text-indigo-700 border-indigo-300",
     desc: "Default balanced model with built-in Google Search grounding for live SAT data.",
@@ -78,8 +78,8 @@ const MODELS = [
     icon: Brain
   },
   {
-    id: "gemini-3.1-flash-lite",
-    name: "Gemini 3.1 Flash-Lite",
+    id: "gemini-3.5-flash-lite",
+    name: "Gemini 3.5 Flash-Lite",
     tag: "Fast & Quick Hints",
     badgeColor: "bg-amber-100 text-amber-700 border-amber-300",
     desc: "Lightweight model optimized for rapid answers, quick definitions, and instant feedback.",
@@ -102,7 +102,7 @@ export function GeminiChatbot() {
       content:
         "Hello! I am your AI SAT Study Companion powered by Google Gemini. Ask me any SAT practice question, concept explanation, or test strategy. I can also search live web data for test dates, college score requirements, and College Board updates!",
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      modelUsed: "gemini-3.5-flash"
+      modelUsed: "gemini-3.8-flash"
     }
   ]);
 
