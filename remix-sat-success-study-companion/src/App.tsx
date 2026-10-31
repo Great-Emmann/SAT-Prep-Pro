@@ -2271,7 +2271,7 @@ export default function App() {
                 <div className="relative z-10">
                   <span className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-indigo-100">Your SAT study space</span>
                   <h1 className="text-2xl sm:text-4xl font-black mt-3 leading-tight">
-                    {firebaseUser ? "Welcome back" : "Welcome"}{(profile.name || firebaseUser?.displayName) ? `, ${(profile.name || firebaseUser?.displayName || "").trim().split(/\\s+/)[0]}` : ""}!
+                    {firebaseUser ? "Welcome back" : "Welcome"}{(profile.name || firebaseUser?.displayName) ? `, ${(profile.name || firebaseUser?.displayName || "").trim().split(/\s+/)[0]}` : ""}!
                   </h1>
                   <p className="mt-3 text-sm sm:text-base text-indigo-100 max-w-xl">
                     What would you like to work on today? Choose a study area below. You can switch sections any time.
