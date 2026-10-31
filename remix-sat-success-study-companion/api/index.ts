@@ -17,6 +17,14 @@ function chatConfigurationStatus(req: Request, res: Response) {
   return res.status(200).json({
     service: "sat-prep-pro-chat",
     configured: Boolean(key?.trim() && key.trim() !== "MY_GEMINI_API_KEY"),
+    // Only disclose state and variable NAMES, never values, lengths, hashes or prefixes.
+    keyState: key === undefined ? "absent"
+      : !key.trim() ? "empty"
+      : key.trim() === "MY_GEMINI_API_KEY" ? "placeholder"
+      : "present",
+    candidateVariableNames: Object.keys(process.env)
+      .filter(name => /GEMINI|GOOGLE.*KEY|AI.*KEY/i.test(name))
+      .slice(0, 12),
     deploymentEnvironment: process.env.VERCEL_ENV || "unknown",
     commit: (process.env.VERCEL_GIT_COMMIT_SHA || "").slice(0, 7) || "unknown",
     checkedAt: new Date().toISOString()
