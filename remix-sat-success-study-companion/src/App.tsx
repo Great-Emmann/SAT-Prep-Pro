@@ -61,6 +61,8 @@ import {
   auth,
   onAuthStateChanged,
   syncUserProfile,
+  fetchUserProfile,
+  saveUserProfile,
   syncUserSettings,
   saveFirestoreStudyLog,
   fetchFirestoreStudyLogs,
@@ -98,6 +100,39 @@ export default function App() {
       focusPreference: "Balanced"
     };
   });
+
+  // The profile starts compact and can be expanded to edit at any time.
+  const [profileExpanded, setProfileExpanded] = useState(() => localStorage.getItem("sat_profile_expanded") === "true");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaveStatus, setProfileSaveStatus] = useState("");
+
+  useEffect(() => {
+    localStorage.setItem("sat_profile_expanded", String(profileExpanded));
+  }, [profileExpanded]);
+
+  const handleSaveStudentProfile = async () => {
+    setProfileSaving(true);
+    setProfileSaveStatus("");
+    try {
+      localStorage.setItem("sat_profile", JSON.stringify(profile));
+      if (auth.currentUser) {
+        await saveUserProfile(auth.currentUser.uid, profile);
+        if (profile.name.trim() && auth.currentUser.displayName !== profile.name.trim()) {
+          await updateProfile(auth.currentUser, { displayName: profile.name.trim() });
+        }
+        setUser(prev => prev ? { ...prev, name: profile.name.trim() || prev.name } : prev);
+        setProfileSaveStatus("Saved to your account and this device.");
+      } else {
+        setProfileSaveStatus("Saved on this device. Sign in to sync across devices.");
+      }
+      setProfileExpanded(false);
+    } catch (error: any) {
+      console.error("Profile save failed:", error);
+      setProfileSaveStatus("Saved on this device, but account sync failed. Please try again.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   // State for raw score input strings to allow free typing without premature clamping
   const [scoreInputs, setScoreInputs] = useState({
@@ -236,7 +271,15 @@ export default function App() {
       setFirebaseUser(u);
       setUser(u && (!u.providerData.some(p => p.providerId === "password") || u.emailVerified) ? { name: u.displayName || u.email || "SAT Student", email: u.email || "" } : null);
       if (u) {
-        syncUserProfile(u.uid, profile);
+        try {
+          const savedProfile = await fetchUserProfile(u.uid);
+          if (savedProfile && typeof savedProfile === "object") {
+            setProfile(prev => ({ ...prev, ...savedProfile }));
+          }
+          // New accounts continue using their local registration details until saved.
+        } catch (error) {
+          console.warn("Unable to load saved student profile:", error);
+        }
         syncUserSettings(u.uid, reminderSettings);
 
         const logs = await fetchFirestoreStudyLogs(u.uid);
@@ -2282,15 +2325,34 @@ export default function App() {
                 badge={{ text: "Editable", color: "bg-indigo-50 text-indigo-600 border border-indigo-200" }}
                 actions={
                   <button
-                    onClick={handleResetAllData}
-                    className="text-[10px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-1.5 py-0.5 rounded transition-all cursor-pointer"
-                    title="Clear all prefilled data and start fresh"
+                    type="button"
+                    onClick={() => { setProfileExpanded(prev => !prev); setProfileSaveStatus(""); }}
+                    aria-expanded={profileExpanded}
+                    aria-controls="student-profile-fields"
+                    className="text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-1 rounded transition-all cursor-pointer inline-flex items-center gap-1"
                   >
-                    🔄 Reset
+                    {profileExpanded ? "Hide" : "Edit"}
+                    {profileExpanded ? <ChevronLeft size={12} /> : <Edit size={12} />}
                   </button>
                 }
               >
-                <div className="space-y-3">
+                {!profileExpanded && (
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-slate-800 truncate">{profile.emoji} {profile.name || "Student"}</span>
+                      <span className="text-slate-500 truncate">{profile.username ? "@" + profile.username : "Profile"}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-slate-600">
+                      <span className="rounded-lg bg-indigo-50 border border-indigo-100 px-2 py-1">Current: {profile.currentMath + profile.currentReadingWriting}/1600</span>
+                      <span className="rounded-lg bg-emerald-50 border border-emerald-100 px-2 py-1">Target: {profile.targetMath + profile.targetReadingWriting}/1600</span>
+                    </div>
+                    {profileSaveStatus && <p role="status" className="text-[11px] text-indigo-700">{profileSaveStatus}</p>}
+                    <button type="button" onClick={() => { setProfileExpanded(true); setProfileSaveStatus(""); }} className="text-indigo-700 font-bold hover:underline cursor-pointer">
+                      Edit student profile
+                    </button>
+                  </div>
+                )}
+                {profileExpanded && <div id="student-profile-fields" className="space-y-3">
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase">Student Name</label>
                     <input
@@ -2452,7 +2514,24 @@ export default function App() {
                       <option value="Standard Grammar Rules">Grammar & Writing Rules</option>
                     </select>
                   </div>
-                </div>
+                  <div className="border-t border-slate-100 pt-3 space-y-2">
+                    <button type="button" disabled={profileSaving} onClick={handleSaveStudentProfile}
+                      className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold text-xs py-2 cursor-pointer">
+                      {profileSaving ? "Saving..." : "Save Profile"}
+                    </button>
+                    <div className="flex justify-between items-center gap-2">
+                      <button type="button" onClick={handleResetAllData}
+                        className="text-[10px] font-semibold text-rose-600 hover:underline cursor-pointer">
+                        Reset local data
+                      </button>
+                      <button type="button" onClick={() => setProfileExpanded(false)}
+                        className="text-[10px] font-semibold text-slate-500 hover:underline cursor-pointer">
+                        Collapse profile
+                      </button>
+                    </div>
+                    {profileSaveStatus && <p role="status" className="text-[11px] text-indigo-700">{profileSaveStatus}</p>}
+                  </div>
+                </div>}
               </WidgetCard>
             )}
 
