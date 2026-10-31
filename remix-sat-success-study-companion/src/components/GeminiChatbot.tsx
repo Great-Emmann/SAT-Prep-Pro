@@ -154,7 +154,13 @@ export function GeminiChatbot() {
         })
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || `The AI tutor returned HTTP ${res.status}. Please try again.`);
+      }
+      if (!data.text || typeof data.text !== "string") {
+        throw new Error("The AI tutor did not return a response.");
+      }
 
       const botMsg: ChatMessage = {
         id: `b_${Date.now()}`,
@@ -171,7 +177,7 @@ export function GeminiChatbot() {
       const errorMsg: ChatMessage = {
         id: `b_${Date.now()}`,
         role: "assistant",
-        content: "Sorry, I had trouble generating a response. Please try again in a moment!",
+        content: err instanceof Error ? err.message : "Sorry, I couldn't reach the AI tutor. Please try again.",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       };
       setMessages((prev) => [...prev, errorMsg]);
