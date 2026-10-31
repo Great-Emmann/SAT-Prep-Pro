@@ -75,6 +75,24 @@ export async function logOut() {
   return signOut(auth);
 }
 
+// Read a student's existing saved profile without replacing it during sign-in.
+export async function fetchUserProfile(userId: string): Promise<any | null> {
+  if (!userId) return null;
+  const snapshot = await getDoc(doc(db, "users", userId));
+  return snapshot.exists() ? (snapshot.data()?.profile ?? null) : null;
+}
+
+// Explicit save reports Firestore errors to the caller, so the UI never claims
+// that an unsuccessful cloud save succeeded.
+export async function saveUserProfile(userId: string, profileData: any): Promise<void> {
+  if (!userId) throw new Error("Sign in to save your profile to your account.");
+  await setDoc(doc(db, "users", userId), {
+    profile: profileData,
+    displayName: profileData.name || "",
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
+}
+
 // Save or sync user SAT profile to Firestore
 export async function syncUserProfile(userId: string, profileData: any) {
   if (!userId) return;
