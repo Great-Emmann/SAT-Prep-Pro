@@ -2326,6 +2326,15 @@ export default function App() {
                   <p className="mt-3 text-sm sm:text-base text-indigo-100 max-w-xl">
                     What would you like to work on today? Choose a study area below. You can switch sections any time.
                   </p>
+                  {firebaseUser && (
+                    <p className="mt-2 text-xs font-semibold text-indigo-100" role="status">
+                      {cloudSaveError
+                        ? "⚠️ " + cloudSaveError
+                        : readyToSyncUid === firebaseUser.uid
+                          ? "✓ Account progress loaded · Changes sync automatically"
+                          : "Loading your saved account progress..."}
+                    </p>
+                  )}
                   <div className="flex flex-wrap gap-2 mt-5">
                     <span className="bg-white/15 border border-white/20 rounded-full px-3 py-1.5 text-xs font-semibold">Current SAT: {profile.currentMath + profile.currentReadingWriting}/1600</span>
                     <span className="bg-white/15 border border-white/20 rounded-full px-3 py-1.5 text-xs font-semibold">Goal: {profile.targetMath + profile.targetReadingWriting}/1600</span>
