@@ -94,6 +94,52 @@ const SUGGESTED_PROMPTS = [
   "What math formulas are provided on the SAT reference sheet?"
 ];
 
+
+function cleanChatText(raw: string): string {
+  const cleaned = raw
+    .replace(/&#(?:x([0-9a-f]+)|([0-9]+));?/gi, (_, hex, dec) => {
+      const code = parseInt(hex || dec, hex ? 16 : 10);
+      return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : "";
+    })
+    .replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"').replace(/&#39;/gi, "'")
+    .replace(/\\([*_[\]()~|])/g, "$1")
+    .replace(/\[([^\]]+)\]\(\s*(https?:\/\/[^\s)]+)\s*\)/g, "$1 ($2)")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/(\*{2}|_{2})(.*?)\1/g, "$2")
+    .replace(/(^|[^\w])\*([^*\n]+)\*/g, "$1$2")
+    .replace(/(^|[^\w])_([^_\n]+)_/g, "$1$2")
+    .replace(/^\s*---+\s*$/gm, "")
+    .replace(/^\s*[-*]\s+/gm, "• ")
+    .trim();
+
+  const lines = cleaned.split("\n");
+  const result: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.includes("|") && i + 1 < lines.length &&
+        /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[i + 1])) {
+      const headers = line.replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+      i += 2;
+      let count = 0;
+      while (i < lines.length && lines[i].includes("|") && lines[i].trim()) {
+        const values = lines[i].trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+        result.push(values.map((value, index) => headers[index] + ": " + value).join("\n"));
+        count++;
+        i++;
+      }
+      i--;
+      if (!count) result.push(headers.join(" — "));
+    } else if (line !== "") {
+      result.push(line);
+    } else if (result.length && result[result.length - 1] !== "") {
+      result.push("");
+    }
+  }
+  return result.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export function GeminiChatbot() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -385,7 +431,7 @@ export function GeminiChatbot() {
                 </div>
 
                 <div className="text-xs leading-relaxed whitespace-pre-wrap font-medium">
-                  {msg.content}
+                  {msg.role === "assistant" ? cleanChatText(msg.content) : msg.content}
                 </div>
 
                 {/* Grounding Source Citations */}
