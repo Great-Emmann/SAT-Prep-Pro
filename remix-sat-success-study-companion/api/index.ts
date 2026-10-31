@@ -9,6 +9,20 @@ passwordResetApp.use(express.json());
 installPasswordResetOtpRoutes(passwordResetApp);
 
 
+// Public, read-only health endpoint: exposes only boolean configuration state.
+// Never return the key, its length, its prefix, or any other secret material.
+function chatConfigurationStatus(req: Request, res: Response) {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  const key = process.env.GEMINI_API_KEY;
+  return res.status(200).json({
+    service: "sat-prep-pro-chat",
+    configured: Boolean(key?.trim() && key.trim() !== "MY_GEMINI_API_KEY"),
+    deploymentEnvironment: process.env.VERCEL_ENV || "unknown",
+    commit: (process.env.VERCEL_GIT_COMMIT_SHA || "").slice(0, 7) || "unknown",
+    checkedAt: new Date().toISOString()
+  });
+}
+
 // Handle the dedicated AI chat without importing the development server.
 async function chatHandler(req: Request, res: Response) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -77,6 +91,7 @@ export default async function handler(req: Request, res: Response) {
   const suffix = originalQuery.toString();
   req.url = "/api/" + endpoint + (suffix ? "?" + suffix : "");
 
+  if (endpoint === "chat/status") return req.method === "GET" ? chatConfigurationStatus(req, res) : res.status(405).json({ error: "Method not allowed" });
   if (endpoint === "chat") return chatHandler(req, res);
 
   if (endpoint === "password-reset/request" || endpoint === "password-reset/confirm") {
