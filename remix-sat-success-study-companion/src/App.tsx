@@ -254,7 +254,7 @@ export default function App() {
 
   // --- Active Panels / Dialogs / Workflows ---
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "mock" | "weak" | "progress" | "analytics" | "mistakes" | "practice" | "chat">("dashboard");
+  const [activeTab, setActiveTab] = useState<"welcome" | "dashboard" | "mock" | "weak" | "progress" | "analytics" | "mistakes" | "practice" | "chat">("welcome");
   const [activeSubSection, setActiveSubSection] = useState<"schedule" | "goals" | "weak" | "quests" | "mastery">("schedule");
   const [loadingTimetable, setLoadingTimetable] = useState(false);
   const [loadingWeakAreas, setLoadingWeakAreas] = useState(false);
@@ -269,6 +269,7 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setFirebaseUser(u);
+      if (u) setActiveTab("welcome");
       setUser(u && (!u.providerData.some(p => p.providerId === "password") || u.emailVerified) ? { name: u.displayName || u.email || "SAT Student", email: u.email || "" } : null);
       if (u) {
         try {
@@ -1926,6 +1927,20 @@ export default function App() {
           {/* Navigation Links */}
           <nav className="space-y-1.5">
             <button
+              id="tab-welcome"
+              type="button"
+              onClick={() => { setActiveTab("welcome"); setMockExamActive(false); }}
+              className={`w-full px-3.5 py-2.5 rounded-2xl font-black text-xs flex items-center gap-3 transition-all cursor-pointer border-b-2 ${
+                activeTab === "welcome"
+                  ? "bg-indigo-50 text-indigo-700 border-indigo-500 shadow-2xs"
+                  : "bg-transparent text-slate-600 border-transparent hover:bg-slate-100"
+              }`}
+            >
+              <span className="text-base">✨</span>
+              <span>STUDY HOME</span>
+            </button>
+
+            <button
               id="tab-dashboard"
               onClick={() => { setActiveTab("dashboard"); setMockExamActive(false); }}
               className={`w-full px-3.5 py-2.5 rounded-2xl font-black text-xs flex items-center gap-3 transition-all cursor-pointer border-b-2 ${
@@ -2077,6 +2092,16 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              id="btn-study-home"
+              title="Return to study home"
+              onClick={() => { setActiveTab("welcome"); setMockExamActive(false); }}
+              className="p-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-xl transition-colors cursor-pointer"
+              aria-label="Study home"
+            >
+              <Home size={16} />
+            </button>
             {/* Quick Access SAT Tools */}
             <button
               id="btn-quick-reference"
@@ -2239,8 +2264,69 @@ export default function App() {
             </div>
           )}
 
-          {/* Dedicated Gemini AI Chatbot View */}
-          {activeTab === "chat" ? (
+          {/* Personalized launch screen: choose one study area before entering it. */}
+          {activeTab === "welcome" ? (
+            <section aria-label="Study home" className="max-w-5xl mx-auto space-y-6 animate-fade-in">
+              <div className="bg-gradient-to-br from-indigo-700 via-indigo-600 to-purple-700 rounded-3xl p-6 sm:p-9 text-white shadow-md relative overflow-hidden">
+                <div className="relative z-10">
+                  <span className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-indigo-100">Your SAT study space</span>
+                  <h1 className="text-2xl sm:text-4xl font-black mt-3 leading-tight">
+                    {firebaseUser ? "Welcome back" : "Welcome"}{(profile.name || firebaseUser?.displayName) ? `, ${(profile.name || firebaseUser?.displayName || "").trim().split(/\\s+/)[0]}` : ""}!
+                  </h1>
+                  <p className="mt-3 text-sm sm:text-base text-indigo-100 max-w-xl">
+                    What would you like to work on today? Choose a study area below. You can switch sections any time.
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-5">
+                    <span className="bg-white/15 border border-white/20 rounded-full px-3 py-1.5 text-xs font-semibold">Current SAT: {profile.currentMath + profile.currentReadingWriting}/1600</span>
+                    <span className="bg-white/15 border border-white/20 rounded-full px-3 py-1.5 text-xs font-semibold">Goal: {profile.targetMath + profile.targetReadingWriting}/1600</span>
+                    <span className="bg-white/15 border border-white/20 rounded-full px-3 py-1.5 text-xs font-semibold">{streak} day study streak</span>
+                  </div>
+                </div>
+                <div aria-hidden="true" className="absolute -right-10 -bottom-20 w-64 h-64 bg-white/10 rounded-full blur-2xl" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-slate-800">Where would you like to start?</h2>
+                <p className="text-sm text-slate-500 mt-1">Open one learning section at a time.</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {([
+                  { id: "dashboard", icon: "📚", title: "Continue Learning", description: "Your SAT study path, lessons and goals." },
+                  { id: "practice", icon: "🎯", title: "Practice Questions", description: "Sharpen Math, Reading and Writing skills." },
+                  { id: "chat", icon: "🤖", title: "AI SAT Tutor", description: "Ask questions and get guided explanations." },
+                  { id: "mock", icon: "⏱️", title: "Take a Mock SAT", description: "Practice in an exam-style setting." },
+                  { id: "mistakes", icon: "📔", title: "Mistake Journal", description: "Revisit errors and learn from them." },
+                  { id: "weak", icon: "🔎", title: "Improve Weak Areas", description: "Focus on topics that need attention." },
+                  { id: "progress", icon: "📈", title: "Progress Report", description: "Review scores and study progress." },
+                  { id: "analytics", icon: "📊", title: "Analytics", description: "Explore your performance and trends." },
+                  { id: "profile", icon: "👤", title: "My Student Profile", description: "Edit your details, targets and preferences." }
+                ] as const).map(item => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      if (item.id === "profile") {
+                        openStudentProfile();
+                      } else {
+                        setActiveTab(item.id);
+                        if (item.id === "mock") {
+                          if (!mockExamActive) setExamStage("intro");
+                        } else {
+                          setMockExamActive(false);
+                        }
+                      }
+                    }}
+                    className="bg-white border border-slate-200 hover:border-indigo-400 hover:shadow-md rounded-2xl p-5 text-left cursor-pointer transition-all group focus-visible:outline-2 focus-visible:outline-indigo-600 flex flex-col gap-3 min-h-[155px]"
+                  >
+                    <span className="text-3xl" aria-hidden="true">{item.icon}</span>
+                    <span className="font-black text-slate-800 group-hover:text-indigo-700 text-base">{item.title}</span>
+                    <span className="text-xs text-slate-500 leading-relaxed">{item.description}</span>
+                    <span className="mt-auto text-xs text-indigo-600 font-bold">Open section →</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-slate-500">Your saved study progress is kept as you move between sections.</p>
+            </section>
+          ) : activeTab === "chat" ? (
             <div className="animate-fade-in max-w-5xl mx-auto h-[82vh]">
               <GeminiChatbot />
             </div>
