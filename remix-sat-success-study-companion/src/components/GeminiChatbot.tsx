@@ -23,6 +23,9 @@ interface ChatMessage {
   timestamp: string;
   modelUsed?: string;
   sources?: { title: string; url: string }[];
+  searchUsed?: boolean;
+  searchQueries?: string[];
+  checkedDate?: string;
 }
 
 const ROLES = [
@@ -222,7 +225,10 @@ export function GeminiChatbot() {
         content: data.text || "I processed your request. Let me know if you need more details!",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         modelUsed: selectedModel,
-        sources: data.sources || []
+        sources: data.sources || [],
+        searchUsed: Boolean(data.searchUsed),
+        searchQueries: Array.isArray(data.searchQueries) ? data.searchQueries : [],
+        checkedDate: data.checkedDate
       };
 
       setMessages((prev) => [...prev, botMsg]);
@@ -433,6 +439,28 @@ export function GeminiChatbot() {
                 <div className="text-xs leading-relaxed whitespace-pre-wrap font-medium">
                   {msg.role === "assistant" ? cleanChatText(msg.content) : msg.content}
                 </div>
+
+                {msg.searchUsed && (
+                  <div className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1.5 mt-2">
+                    <Globe size={12} />
+                    Checked with Google Search {msg.checkedDate ? "• " + msg.checkedDate : ""}
+                  </div>
+                )}
+                {msg.searchQueries && msg.searchQueries.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1" aria-label="Google Search suggestions">
+                    {msg.searchQueries.map((query, index) => (
+                      <a
+                        key={index}
+                        href={"https://www.google.com/search?q=" + encodeURIComponent(query)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-blue-700 hover:underline bg-blue-50 rounded-lg px-2 py-1"
+                      >
+                        Search: {query}
+                      </a>
+                    ))}
+                  </div>
+                )}
 
                 {/* Grounding Source Citations */}
                 {msg.sources && msg.sources.length > 0 && (
