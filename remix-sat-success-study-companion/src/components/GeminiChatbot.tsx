@@ -62,28 +62,28 @@ const ROLES = [
 
 const MODELS = [
   {
+    id: "gemini-3.5-flash-lite",
+    name: "Gemini 3.5 Flash-Lite",
+    tag: "Fast default",
+    badgeColor: "bg-indigo-100 text-indigo-700 border-indigo-300",
+    desc: "Fast responses for everyday SAT tutoring and hints.",
+    icon: Zap
+  },
+  {
     id: "gemini-3.8-flash",
     name: "Gemini 3.8 Flash",
-    tag: "General & Search",
-    badgeColor: "bg-indigo-100 text-indigo-700 border-indigo-300",
-    desc: "Default balanced model with built-in Google Search grounding for live SAT data.",
-    icon: Globe
+    tag: "Advanced explanations",
+    badgeColor: "bg-purple-100 text-purple-700 border-purple-300",
+    desc: "For harder multi-step Math and Reading questions; may take longer.",
+    icon: Brain
   },
   {
     id: "gemini-3.1-pro-preview",
     name: "Gemini 3.1 Pro",
-    tag: "Complex Reasoning",
-    badgeColor: "bg-purple-100 text-purple-700 border-purple-300",
-    desc: "Advanced reasoning model for complex math proofs, multi-step word problems, and deep analysis.",
-    icon: Brain
-  },
-  {
-    id: "gemini-3.5-flash-lite",
-    name: "Gemini 3.5 Flash-Lite",
-    tag: "Fast & Quick Hints",
+    tag: "Deep reasoning",
     badgeColor: "bg-amber-100 text-amber-700 border-amber-300",
-    desc: "Lightweight model optimized for rapid answers, quick definitions, and instant feedback.",
-    icon: Zap
+    desc: "For complex questions; typically slower than Flash-Lite.",
+    icon: Globe
   }
 ];
 
@@ -102,7 +102,7 @@ export function GeminiChatbot() {
       content:
         "Hello! I am your AI SAT Study Companion powered by Google Gemini. Ask me any SAT practice question, concept explanation, or test strategy. I can also search live web data for test dates, college score requirements, and College Board updates!",
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      modelUsed: "gemini-3.8-flash"
+      modelUsed: "gemini-3.5-flash-lite"
     }
   ]);
 
@@ -143,16 +143,24 @@ export function GeminiChatbot() {
         .concat(userMsg)
         .map((m) => ({ role: m.role, content: m.content }));
 
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: historyForApi,
-          model: selectedModel,
-          systemInstruction: selectedRole.instruction,
-          enableSearch: enableSearch
-        })
-      });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 22000);
+      let res: Response;
+      try {
+        res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            messages: historyForApi,
+            model: selectedModel,
+            systemInstruction: selectedRole.instruction,
+            enableSearch: enableSearch
+          })
+        });
+      } finally {
+        clearTimeout(timer);
+      }
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
