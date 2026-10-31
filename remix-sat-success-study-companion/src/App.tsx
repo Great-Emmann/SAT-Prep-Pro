@@ -254,7 +254,7 @@ export default function App() {
 
   // --- Active Panels / Dialogs / Workflows ---
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"welcome" | "dashboard" | "mock" | "weak" | "progress" | "analytics" | "mistakes" | "practice" | "chat">("welcome");
+  const [activeTab, setActiveTab] = useState<"welcome" | "dashboard" | "mock" | "weak" | "progress" | "analytics" | "mistakes" | "practice" | "chat" | "profile" | "streak" | "roadmap" | "schedule" | "mastery">("welcome");
   const [activeSubSection, setActiveSubSection] = useState<"schedule" | "goals" | "weak" | "quests" | "mastery">("schedule");
   const [loadingTimetable, setLoadingTimetable] = useState(false);
   const [loadingWeakAreas, setLoadingWeakAreas] = useState(false);
@@ -304,10 +304,7 @@ export default function App() {
     setProfileExpanded(true);
     setProfileSaveStatus("");
     setMockExamActive(false);
-    setActiveTab("progress");
-    window.setTimeout(() => {
-      document.getElementById("profile-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 120);
+    setActiveTab("profile");
   };
 
   // --- Google Sign-In & Mistake Journal States ---
@@ -2298,7 +2295,11 @@ export default function App() {
                   { id: "weak", icon: "🔎", title: "Improve Weak Areas", description: "Focus on topics that need attention." },
                   { id: "progress", icon: "📈", title: "Progress Report", description: "Review scores and study progress." },
                   { id: "analytics", icon: "📊", title: "Analytics", description: "Explore your performance and trends." },
-                  { id: "profile", icon: "👤", title: "My Student Profile", description: "Edit your details, targets and preferences." }
+                  { id: "profile", icon: "👤", title: "My Student Profile", description: "Edit your details, targets and preferences." },
+                  { id: "roadmap", icon: "🧭", title: "Score Roadmap", description: "Focus on the gap between your current and goal scores." },
+                  { id: "schedule", icon: "🗓️", title: "Study Schedule", description: "View and customize your study timetable." },
+                  { id: "mastery", icon: "🏅", title: "Topic Mastery", description: "Review your skills by SAT topic." },
+                  { id: "streak", icon: "🔥", title: "Study Streak", description: "Log study sessions and view your badges." }
                 ] as const).map(item => (
                   <button
                     key={item.id}
@@ -2362,9 +2363,9 @@ export default function App() {
               setMockExamActive={setMockExamActive}
             />
           ) : (
-            <div className="grid grid-cols-12 gap-4 w-full max-w-7xl mx-auto min-w-0">
+            <div className="grid grid-cols-12 gap-4 w-full max-w-5xl mx-auto min-w-0">
             {/* Widget Category Filter & View Toolbar */}
-            <div className="col-span-12 bg-white p-3 rounded-xl border border-slate-200/90 shadow-2xs flex flex-wrap items-center justify-between gap-3 mb-1">
+            <div className="hidden">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
                   <Sliders size={13} className="text-indigo-600" /> Filter Widgets:
@@ -2429,11 +2430,10 @@ export default function App() {
             {/* ========================================== */}
             {/* LEFT COLUMN (Width 3): Profile, Streak & Badges */}
             {/* ========================================== */}
-        <div className="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col gap-4">
+        <div className={activeTab === "profile" || activeTab === "streak" ? "col-span-12 max-w-4xl w-full mx-auto flex flex-col gap-4" : "hidden"}>
           
           {/* Student Profile Quick-Editor Widget */}
-          {(widgetFilter === "all" || widgetFilter === "profile") &&
-            (!widgetSearch || "student profile name username test date target score math reading writing focus".includes(widgetSearch.toLowerCase())) && (
+          {activeTab === "profile" && (
               <WidgetCard
                 id="profile-card"
                 collapsible={false}
@@ -2654,8 +2654,7 @@ export default function App() {
             )}
 
           {/* Streak Tracker & Badges Widget */}
-          {(widgetFilter === "all" || widgetFilter === "profile") &&
-            (!widgetSearch || "streak badges flame study log milestone level".includes(widgetSearch.toLowerCase())) && (
+          {activeTab === "streak" && (
               <WidgetCard
                 id="streak-card"
                 title="Study Streak & Badges"
@@ -2763,10 +2762,10 @@ export default function App() {
         {/* ========================================== */}
         {/* MIDDLE COLUMN (Width 5): Score Roadmap, Timetable, Mock SAT or Special Actions */}
         {/* ========================================== */}
-        <div className="col-span-12 md:col-span-8 lg:col-span-5 flex flex-col gap-4">
+        <div className={["mock", "roadmap", "schedule", "weak", "progress", "analytics", "mistakes", "practice"].includes(activeTab) ? "col-span-12 w-full max-w-5xl mx-auto flex flex-col gap-4" : "hidden"}>
           
           {/* Active SAT Exam Interactive Module */}
-          {mockExamActive ? (
+          {(mockExamActive || activeTab === "mock") ? (
             <div id="mock-exam-workspace" className="bg-indigo-950 text-white p-5 rounded-2xl shadow-xl border border-indigo-900 flex flex-col gap-4 animate-fade-in relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
               
@@ -3209,8 +3208,7 @@ export default function App() {
           ) : (
             <>
               {/* Goal Roadmap & Score Gap Widget */}
-              {(widgetFilter === "all" || widgetFilter === "profile") &&
-                (!widgetSearch || "goal roadmap score gap target velocity analyze".includes(widgetSearch.toLowerCase())) && (
+              {activeTab === "roadmap" && (
                   <WidgetCard
                     id="score-gap-card"
                     title="Goal Roadmap & Score Gap"
@@ -3261,8 +3259,7 @@ export default function App() {
               )}
 
               {/* Today's Study Plan Widget */}
-              {(widgetFilter === "all" || widgetFilter === "schedule") &&
-                (!widgetSearch || "today study plan schedule timetable commitment slots".includes(widgetSearch.toLowerCase())) && (
+              {activeTab === "schedule" && (
                   <WidgetCard
                     id="timetable-card"
                     title="Today's Study Schedule"
@@ -4054,11 +4051,10 @@ export default function App() {
         {/* ========================================== */}
         {/* RIGHT COLUMN (Width 4): Topic Mastery & AI Chatbot */}
         {/* ========================================== */}
-        <div className="col-span-12 md:col-span-12 lg:col-span-4 flex flex-col gap-4">
+        <div className={activeTab === "mastery" ? "col-span-12 w-full max-w-4xl mx-auto flex flex-col gap-4" : "hidden"}>
           
           {/* Topic Mastery Self-Assessment / Heatmap Widget */}
-          {(widgetFilter === "all" || widgetFilter === "analytics") &&
-            (!widgetSearch || "section topic mastery algebra geometry grammar writing reading analysis".includes(widgetSearch.toLowerCase())) && (
+          {activeTab === "mastery" && (
               <WidgetCard
                 id="mastery-card"
                 title="Section Topic Mastery"
@@ -4148,7 +4144,7 @@ export default function App() {
             )}
 
           {/* Chat Assistant Section */}
-          <div id="chatbot-card" className="bg-indigo-600 text-white rounded-xl shadow-md flex-1 flex flex-col overflow-hidden relative border border-indigo-700">
+          <div id="chatbot-card" className="hidden">
             {/* Header */}
             <div className="p-3 bg-indigo-700 border-b border-indigo-800 flex justify-between items-center z-10">
               <div className="flex items-center gap-2">
