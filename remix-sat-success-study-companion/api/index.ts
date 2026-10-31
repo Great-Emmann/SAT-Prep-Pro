@@ -56,7 +56,7 @@ async function chatHandler(req: Request, res: Response) {
   const profile = body.profile || {};
   const profileHint = profile.name ? "Student name: " + String(profile.name).slice(0, 60) + "\n" : "";
   const prompt = systemInstruction + "\n" + profileHint +
-    "\nAnswer the latest question directly and accurately in under 220 words. Do not claim to have searched the web.\nConversation:\n" +
+    "\nAnswer the latest question directly and accurately in under 220 words. Write clean plain text with short paragraphs and numbered points when needed. Do not use Markdown markers, asterisks, pipe tables, HTML entities or escaped punctuation. Include source URLs as ordinary links when helpful. Do not claim to have searched the web.\nConversation:\n" +
     conversation.map((m: { role: string; text: string }) => m.role + ": " + m.text).join("\n") + "\nTutor:";
 
   // Bound provider latency so a stuck Gemini request never leaves the UI spinning.
