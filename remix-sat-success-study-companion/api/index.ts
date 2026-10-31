@@ -55,8 +55,17 @@ async function chatHandler(req: Request, res: Response) {
     "You are a supportive SAT tutor. Teach Math and Reading & Writing clearly with concise, step-by-step explanations.").slice(0, 800);
   const profile = body.profile || {};
   const profileHint = profile.name ? "Student name: " + String(profile.name).slice(0, 60) + "\n" : "";
+  const currentDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Nairobi", year: "numeric", month: "long", day: "numeric",
+    weekday: "long"
+  }).format(new Date());
+  const latestQuestion = conversation.filter(m => m.role === "Student").slice(-1)[0]?.text || "";
+  // Avoid slowing routine math/grammar tutoring by searching unnecessarily.
+  const needsCurrentInfo = /\b(today|now|current|currently|latest|recent|upcoming|next|this year|this month|202[5-9]|203\d|dates?|deadlines?|registration|test cent(?:er|re)|fees?|cost|price|policy|policies|requirements?|available|availability|changes?|announc|college board|score release|superscor|university admission|scholarships?)\b/i.test(latestQuestion);
+  const searchEnabled = body.enableSearch !== false;
+  const useSearch = searchEnabled && needsCurrentInfo;
   const prompt = systemInstruction + "\n" + profileHint +
-    "\nAnswer the latest question directly and accurately in under 220 words. Write clean plain text with short paragraphs and numbered points when needed. Do not use Markdown markers, asterisks, pipe tables, HTML entities or escaped punctuation. Include source URLs as ordinary links when helpful. Do not claim to have searched the web.\nConversation:\n" +
+    "\nToday is " + currentDate + " (Kenya time). Treat the current date as authoritative, not your training cutoff. For SAT test dates, registration deadlines, prices, seat availability, policies, or recent announcements, rely on verified current information; never invent a date or claim to have checked live information without search results. If search was not used, explicitly say that current details remain unverified and direct the student to satsuite.collegeboard.org.\nAnswer the latest question directly and accurately in under 220 words. Write clean plain text with short paragraphs and numbered points when needed. Do not use Markdown markers, asterisks, pipe tables, HTML entities or escaped punctuation. Include source URLs as ordinary links when helpful. Do not claim to have searched the web.\nConversation:\n" +
     conversation.map((m: { role: string; text: string }) => m.role + ": " + m.text).join("\n") + "\nTutor:";
 
   // Bound provider latency so a stuck Gemini request never leaves the UI spinning.
@@ -72,6 +81,7 @@ async function chatHandler(req: Request, res: Response) {
         headers: { "Content-Type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: prompt }] }],
+          ...(useSearch ? { tools: [{ googleSearch: {} }] } : {}),
           generationConfig: { maxOutputTokens: 650, temperature: 0.45 }
         }),
         signal: controller.signal
@@ -102,8 +112,21 @@ async function chatHandler(req: Request, res: Response) {
       console.error("SAT_CHAT_EMPTY_RESPONSE", "durationMs", Date.now() - started);
       return res.status(503).json({ error: "Gemini returned no answer. Try again or choose another model.", code: "CHAT_EMPTY_RESPONSE" });
     }
-    console.info("SAT_CHAT_SUCCESS", "model", model, "durationMs", Date.now() - started);
-    return res.json({ text: reply, sources: [], modelUsed: model });
+    const grounding = result?.candidates?.[0]?.groundingMetadata;
+    const sources = useSearch && Array.isArray(grounding?.groundingChunks)
+      ? grounding.groundingChunks
+          .map((chunk: any) => ({ title: String(chunk?.web?.title || "Source").slice(0, 130), url: String(chunk?.web?.uri || "") }))
+          .filter((source: { title: string; url: string }) => /^https?:\/\//i.test(source.url))
+          .filter((source: { title: string; url: string }, index: number, array: { title: string; url: string }[]) =>
+            array.findIndex(item => item.url === source.url) === index).slice(0, 6)
+      : [];
+    const searchQueries = useSearch && Array.isArray(grounding?.webSearchQueries)
+      ? grounding.webSearchQueries.filter((q: unknown) => typeof q === "string").slice(0, 5)
+      : [];
+    // A search-enabled request isn't proof that Google actually searched.
+    const searchUsed = sources.length > 0 || searchQueries.length > 0;
+    console.info("SAT_CHAT_SUCCESS", "model", model, "searched", searchUsed, "durationMs", Date.now() - started);
+    return res.json({ text: reply, sources, modelUsed: model, searchUsed, searchQueries, checkedDate: currentDate });
   } catch (error: any) {
     const timedOut = controller.signal.aborted || error?.name === "AbortError";
     console.error("SAT_CHAT_FAILURE", timedOut ? "CHAT_TIMEOUT" : "CHAT_NETWORK_ERROR", "durationMs", Date.now() - started);
