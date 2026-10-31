@@ -61,7 +61,8 @@ import {
   auth,
   onAuthStateChanged,
   syncUserProfile,
-  fetchUserProfile,
+  fetchUserStudyState,
+  saveUserStudyState,
   saveUserProfile,
   syncUserSettings,
   saveFirestoreStudyLog,
@@ -265,36 +266,88 @@ export default function App() {
   // --- Firebase Auth & Firestore Persistence State ---
   const [firebaseUser, setFirebaseUser] = useState<any>(null);
   const [showFirebaseAuthModal, setShowFirebaseAuthModal] = useState(false);
+  // Cloud writes only start after the account's existing data has been loaded.
+  // This avoids overwriting an existing profile with blank first-render defaults.
+  const [readyToSyncUid, setReadyToSyncUid] = useState<string | null>(null);
+  const signedInUidRef = useRef<string | null>(null);
+  const [cloudSaveError, setCloudSaveError] = useState("");
 
   useEffect(() => {
+    if (!firebaseUser?.uid || readyToSyncUid !== firebaseUser.uid) return;
+    const uid = firebaseUser.uid as string;
+    const timer = window.setTimeout(() => {
+      if (auth.currentUser?.uid !== uid) return;
+      saveUserStudyState(uid, {
+        profile, scoresHistory, mastery, streak, streakLoggedToday, timetable, weeklyChallenges
+      }).then(() => {
+        localStorage.setItem("sat_profile_owner_uid", uid);
+        localStorage.setItem("sat_profile_" + uid, JSON.stringify(profile));
+        setCloudSaveError("");
+      }).catch(error => {
+        console.error("Account progress autosave failed:", error);
+        setCloudSaveError("Cloud sync is unavailable. Changes remain saved on this device.");
+      });
+    }, 1250);
+    return () => window.clearTimeout(timer);
+  }, [firebaseUser?.uid, readyToSyncUid, profile, scoresHistory, mastery, streak, streakLoggedToday, timetable, weeklyChallenges]);
+
+
+  useEffect(() => {
+    let active = true;
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      signedInUidRef.current = u?.uid || null;
+      setReadyToSyncUid(null);
+      setCloudSaveError("");
       setFirebaseUser(u);
       if (u) setActiveTab("welcome");
-      setUser(u && (!u.providerData.some(p => p.providerId === "password") || u.emailVerified) ? { name: u.displayName || u.email || "SAT Student", email: u.email || "" } : null);
-      if (u) {
-        try {
-          const savedProfile = await fetchUserProfile(u.uid);
-          if (savedProfile && typeof savedProfile === "object") {
-            setProfile(prev => ({ ...prev, ...savedProfile }));
+      setUser(u && (!u.providerData.some(p => p.providerId === "password") || u.emailVerified)
+        ? { name: u.displayName || u.email || "SAT Student", email: u.email || "" } : null);
+      if (!u) return;
+      try {
+        const saved = await fetchUserStudyState(u.uid);
+        if (!active || signedInUidRef.current !== u.uid) return;
+        const existing = saved?.profile;
+        if (existing && typeof existing === "object") {
+          setProfile(prev => ({ ...prev, ...existing }));
+        } else {
+          const stored = localStorage.getItem("sat_profile_" + u.uid);
+          const ownerUid = localStorage.getItem("sat_profile_owner_uid");
+          if (stored) {
+            try { setProfile(JSON.parse(stored)); } catch { /* ignore corrupted local copy */ }
+          } else if (ownerUid && ownerUid !== u.uid) {
+            // Never send another student's locally cached scores to a new account.
+            setProfile({
+              name: u.displayName || "", username: "", emoji: "🎓", testDate: "",
+              targetMath: 700, targetReadingWriting: 700,
+              currentMath: 200, currentReadingWriting: 200, focusPreference: "Balanced"
+            });
+            setScoresHistory([]);
           }
-          // New accounts continue using their local registration details until saved.
-        } catch (error) {
-          console.warn("Unable to load saved student profile:", error);
         }
-        syncUserSettings(u.uid, reminderSettings);
-
-        const logs = await fetchFirestoreStudyLogs(u.uid);
-        if (logs && logs.length > 0) {
-          setStudyLogs(logs);
-        }
-
-        const remoteMistakes = await fetchFirestoreMistakes(u.uid);
-        if (remoteMistakes && remoteMistakes.length > 0) {
-          setMistakeJournal(remoteMistakes);
+        if (Array.isArray(saved?.scoresHistory)) setScoresHistory(saved.scoresHistory);
+        if (saved?.mastery && typeof saved.mastery === "object") setMastery(saved.mastery);
+        if (typeof saved?.streak === "number") setStreak(saved.streak);
+        if (typeof saved?.streakLoggedToday === "boolean") setStreakLoggedToday(saved.streakLoggedToday);
+        if (saved?.timetable && typeof saved.timetable === "object") setTimetable(saved.timetable);
+        if (Array.isArray(saved?.weeklyChallenges)) setWeeklyChallenges(saved.weeklyChallenges);
+        // Existing detailed logs and mistakes remain in their dedicated Firestore collections.
+        const [logs, remoteMistakes] = await Promise.all([
+          fetchFirestoreStudyLogs(u.uid), fetchFirestoreMistakes(u.uid)
+        ]);
+        if (!active || signedInUidRef.current !== u.uid) return;
+        if (logs.length) setStudyLogs(logs);
+        if (remoteMistakes.length) setMistakeJournal(remoteMistakes);
+        localStorage.setItem("sat_profile_owner_uid", u.uid);
+        setReadyToSyncUid(u.uid);
+      } catch (error) {
+        console.warn("Unable to restore student data from Firebase. Cloud saving paused to protect existing data.", error);
+        if (active && signedInUidRef.current === u.uid) {
+          setCloudSaveError("Could not load your saved account data. Cloud saving is paused; please retry signing in.");
         }
       }
+      syncUserSettings(u.uid, reminderSettings);
     });
-    return () => unsubscribe();
+    return () => { active = false; unsubscribe(); };
   }, []);
 
   // Open the existing student-profile editor from any page.
@@ -2465,6 +2518,7 @@ export default function App() {
                       <span className="rounded-lg bg-emerald-50 border border-emerald-100 px-2 py-1">Target: {profile.targetMath + profile.targetReadingWriting}/1600</span>
                     </div>
                     {profileSaveStatus && <p role="status" className="text-[11px] text-indigo-700">{profileSaveStatus}</p>}
+                    {cloudSaveError && <p role="alert" className="text-[11px] text-amber-700">{cloudSaveError}</p>}
                     <button type="button" onClick={() => { setProfileExpanded(true); setProfileSaveStatus(""); }} className="text-indigo-700 font-bold hover:underline cursor-pointer">
                       Edit student profile
                     </button>
@@ -2648,6 +2702,7 @@ export default function App() {
                       </button>
                     </div>
                     {profileSaveStatus && <p role="status" className="text-[11px] text-indigo-700">{profileSaveStatus}</p>}
+                    {cloudSaveError && <p role="alert" className="text-[11px] text-amber-700">{cloudSaveError}</p>}
                   </div>
                 </div>}
               </WidgetCard>
