@@ -122,6 +122,7 @@ export const MasteryQuestionBank: React.FC<{ onAvailabilityChange?: (available: 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [expandedImage, setExpandedImage] = useState(false);
+  const [viewOriginal, setViewOriginal] = useState(false);
   const [filter, setFilter] = useState<"All" | Subject>("All");
   const [search, setSearch] = useState("");
   const uid = auth.currentUser?.uid || "guest";
@@ -197,6 +198,7 @@ export const MasteryQuestionBank: React.FC<{ onAvailabilityChange?: (available: 
     setResponse("");
     setShowExplanation(false);
     setExpandedImage(false);
+    setViewOriginal(false);
     try {
       const loaded = await fetchQuestionPack(unit.pack);
       if (!loaded.length) throw new Error("This unit has no questions.");
@@ -217,6 +219,7 @@ export const MasteryQuestionBank: React.FC<{ onAvailabilityChange?: (available: 
     setResponse("");
     setShowExplanation(false);
     setExpandedImage(false);
+    setViewOriginal(false);
     setSaveError("");
   };
 
@@ -368,7 +371,8 @@ export const MasteryQuestionBank: React.FC<{ onAvailabilityChange?: (available: 
               {selectedUnit.subject === "Reading and Writing" && question.prompt && question.options.length === 4 ? (
                 <>
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-800 leading-relaxed whitespace-pre-line">{question.prompt}</div>
-                  {/\b(graph|figure|chart|table|diagram|scatterplot)\b/i.test(question.prompt) && question.images.map((src, index) => (
+                  <button type="button" onClick={() => setViewOriginal(!viewOriginal)} className="text-xs font-bold text-indigo-700 hover:underline">{viewOriginal ? "Hide" : "View"} original PDF formatting</button>
+                  {(viewOriginal || /\b(graph|figure|chart|table|diagram|scatterplot)\b/i.test(question.prompt)) && question.images.map((src, index) => (
                     <div key={index} className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
                       <img src={src} alt={"Original question layout " + (index + 1)} className="w-full h-auto" loading="lazy" />
                     </div>
