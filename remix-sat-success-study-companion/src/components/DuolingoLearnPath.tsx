@@ -52,6 +52,7 @@ interface DuolingoLearnPathProps {
   setWeeklyChallenges: (val: any) => void;
   leaderboard: any[];
   streak: number;
+  onStudyActivity: () => void;
   
   // Topic Mastery
   topicMastery: any[];
@@ -92,6 +93,7 @@ export const DuolingoLearnPath: React.FC<DuolingoLearnPathProps> = ({
   setWeeklyChallenges,
   leaderboard,
   streak,
+  onStudyActivity,
   topicMastery,
   setActiveTab,
   setMockExamActive,
@@ -187,7 +189,7 @@ export const DuolingoLearnPath: React.FC<DuolingoLearnPathProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
-      <MasteryQuestionBank onAvailabilityChange={setHasImportedBank} />
+      <MasteryQuestionBank onAvailabilityChange={setHasImportedBank} onStudyActivity={onStudyActivity} />
 
       {/* Original starter roadmap remains until full bank assets are published. */}
       <div className={hasImportedBank ? "hidden" : "bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 space-y-6"}>
