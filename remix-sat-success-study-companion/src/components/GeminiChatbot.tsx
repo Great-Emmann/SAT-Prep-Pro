@@ -143,7 +143,7 @@ function cleanChatText(raw: string): string {
   return result.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-export function GeminiChatbot() {
+export function GeminiChatbot({ onStudyActivity }: { onStudyActivity?: () => void } = {}) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "m_welcome",
@@ -232,6 +232,7 @@ export function GeminiChatbot() {
       };
 
       setMessages((prev) => [...prev, botMsg]);
+      onStudyActivity?.();
     } catch (err) {
       console.error("Chat request failed:", err);
       const errorMsg: ChatMessage = {
