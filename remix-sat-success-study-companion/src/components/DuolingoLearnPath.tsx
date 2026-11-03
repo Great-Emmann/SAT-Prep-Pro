@@ -16,6 +16,7 @@ import {
   Plus
 } from "lucide-react";
 import { WidgetCard } from "./WidgetCard";
+import { MasteryQuestionBank } from "./MasteryQuestionBank";
 import { FormattedMarkdown } from "./FormattedMarkdown";
 
 interface DuolingoLearnPathProps {
@@ -99,6 +100,8 @@ export const DuolingoLearnPath: React.FC<DuolingoLearnPathProps> = ({
   activeSubSection,
   setActiveSubSection
 }) => {
+  const [hasImportedBank, setHasImportedBank] = React.useState(false);
+
   const units = [
     {
       id: "u1",
@@ -184,8 +187,10 @@ export const DuolingoLearnPath: React.FC<DuolingoLearnPathProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
-      {/* SAT LEARNING ROADMAP / PATH TRAIL */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 space-y-6">
+      <MasteryQuestionBank onAvailabilityChange={setHasImportedBank} />
+
+      {/* Original starter roadmap remains until full bank assets are published. */}
+      <div className={hasImportedBank ? "hidden" : "bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 space-y-6"}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
           <div>
             <div className="flex items-center gap-2">
