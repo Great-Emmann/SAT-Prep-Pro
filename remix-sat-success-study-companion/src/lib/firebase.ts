@@ -152,6 +152,21 @@ export async function recordStudyActivity(userId: string, activityDate: string):
   });
 }
 
+// Keep the streak live when the same account is open on another device.
+export function subscribeStudyStreak(
+  userId: string,
+  onChange: (state: StudyStreak) => void,
+  onError?: (error: Error) => void
+): () => void {
+  return onSnapshot(doc(db, "users", userId), (snapshot) => {
+    const data = snapshot.data();
+    if (typeof data?.streakLastActivityDate === "string" && data.streakLastActivityDate &&
+        typeof data?.streak === "number") {
+      onChange({ streak: Math.max(0, data.streak), lastActivityDate: data.streakLastActivityDate });
+    }
+  }, (error) => onError?.(error));
+}
+
 // Save or sync user SAT profile to Firestore
 export async function syncUserProfile(userId: string, profileData: any) {
   if (!userId) return;
