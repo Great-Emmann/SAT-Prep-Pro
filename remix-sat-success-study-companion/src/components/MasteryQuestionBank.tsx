@@ -108,7 +108,7 @@ function getCount(unit: Unit, progress: Progress): { practiced: number; mastered
   };
 }
 
-export const MasteryQuestionBank: React.FC<{ onAvailabilityChange?: (available: boolean) => void }> = ({ onAvailabilityChange }) => {
+export const MasteryQuestionBank: React.FC<{ onAvailabilityChange?: (available: boolean) => void; onStudyActivity?: () => void }> = ({ onAvailabilityChange, onStudyActivity }) => {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [loadingIndex, setLoadingIndex] = useState(true);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
@@ -245,6 +245,8 @@ export const MasteryQuestionBank: React.FC<{ onAvailabilityChange?: (available: 
     setProgress(nextProgress);
     setShowExplanation(true);
     setSaveError("");
+    // A submitted answer, correct or incorrect, completes real study activity.
+    onStudyActivity?.();
     try { localStorage.setItem(localKey(uid), JSON.stringify(nextProgress)); } catch { /* storage unavailable */ }
     if (uid === "guest") return;
     setSaving(true);
