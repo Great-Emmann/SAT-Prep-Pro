@@ -48,6 +48,7 @@ import {
   Bookmark
 } from "lucide-react";
 import { mockExam1 } from "./mockExamData";
+import { activeStudyStreak, advanceStudyStreak, localStudyDate, StudyStreak } from "./lib/studyStreak";
 import { aiPracticeQuestions } from "./aiPracticeData";
 import { GeminiChatbot } from "./components/GeminiChatbot";
 import { FirebaseAuthModal } from "./components/FirebaseAuthModal";
@@ -63,6 +64,7 @@ import {
   syncUserProfile,
   fetchUserStudyState,
   saveUserStudyState,
+  recordStudyActivity,
   saveUserProfile,
   syncUserSettings,
   saveFirestoreStudyLog,
@@ -195,10 +197,23 @@ export default function App() {
     return saved ? parseInt(saved, 10) : 0;
   });
 
-  const [streakLoggedToday, setStreakLoggedToday] = useState<boolean>(() => {
-    const saved = localStorage.getItem("sat_streak_logged");
-    return saved === "true";
-  });
+  const [streakLastActivityDate, setStreakLastActivityDate] = useState(() => localStorage.getItem("sat_streak_last_date") || "");
+  const [todayStr, setTodayStr] = useState(localStudyDate);
+  const streakRef = useRef<StudyStreak>({ streak, lastActivityDate: streakLastActivityDate });
+  const streakSaveInFlightRef = useRef<string | null>(null);
+  const streakLoggedToday = streakLastActivityDate === todayStr;
+  const displayedStreak = activeStudyStreak({ streak, lastActivityDate: streakLastActivityDate }, todayStr);
+  useEffect(() => {
+    const updateCalendarDay = () => setTodayStr(localStudyDate());
+    const timer = window.setInterval(updateCalendarDay, 30_000);
+    window.addEventListener("focus", updateCalendarDay);
+    document.addEventListener("visibilitychange", updateCalendarDay);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", updateCalendarDay);
+      document.removeEventListener("visibilitychange", updateCalendarDay);
+    };
+  }, []);
 
   const [mastery, setMastery] = useState<TopicMastery>(() => {
     const saved = localStorage.getItem("sat_mastery");
@@ -272,13 +287,45 @@ export default function App() {
   const signedInUidRef = useRef<string | null>(null);
   const [cloudSaveError, setCloudSaveError] = useState("");
 
+  // Called only when a student submits an answer, completes an exam, or logs study.
+  // Firestore transactions stop duplicate increments across devices and tabs.
+  const markStudyActivity = () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || signedInUidRef.current !== uid || readyToSyncUid !== uid) return;
+    const day = localStudyDate();
+    const key = uid + ":" + day;
+    if (streakRef.current.lastActivityDate >= day || streakSaveInFlightRef.current === key) return;
+    const next = advanceStudyStreak(streakRef.current, day);
+    streakRef.current = next;
+    streakSaveInFlightRef.current = key;
+    setTodayStr(day);
+    setStreak(next.streak);
+    setStreakLastActivityDate(next.lastActivityDate);
+    localStorage.setItem("sat_streak_pending_" + uid, day);
+    recordStudyActivity(uid, day).then((saved) => {
+      if (signedInUidRef.current !== uid) return;
+      streakRef.current = saved;
+      setStreak(saved.streak);
+      setStreakLastActivityDate(saved.lastActivityDate);
+      localStorage.removeItem("sat_streak_pending_" + uid);
+      setCloudSaveError("");
+    }).catch((error) => {
+      console.error("Daily study streak sync failed:", error);
+      if (signedInUidRef.current === uid) {
+        setCloudSaveError("Today's study was recorded on this device. Streak sync will retry when connected.");
+      }
+    }).finally(() => {
+      if (streakSaveInFlightRef.current === key) streakSaveInFlightRef.current = null;
+    });
+  };
+
   useEffect(() => {
     if (!firebaseUser?.uid || readyToSyncUid !== firebaseUser.uid) return;
     const uid = firebaseUser.uid as string;
     const timer = window.setTimeout(() => {
       if (auth.currentUser?.uid !== uid) return;
       saveUserStudyState(uid, {
-        profile, scoresHistory, mastery, streak, streakLoggedToday, timetable, weeklyChallenges
+        profile, scoresHistory, mastery, timetable, weeklyChallenges
       }).then(() => {
         localStorage.setItem("sat_profile_owner_uid", uid);
         localStorage.setItem("sat_profile_" + uid, JSON.stringify(profile));
@@ -289,7 +336,7 @@ export default function App() {
       });
     }, 1250);
     return () => window.clearTimeout(timer);
-  }, [firebaseUser?.uid, readyToSyncUid, profile, scoresHistory, mastery, streak, streakLoggedToday, timetable, weeklyChallenges]);
+  }, [firebaseUser?.uid, readyToSyncUid, profile, scoresHistory, mastery, timetable, weeklyChallenges]);
 
 
   useEffect(() => {
@@ -297,6 +344,7 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       signedInUidRef.current = u?.uid || null;
       setReadyToSyncUid(null);
+      streakSaveInFlightRef.current = null;
       setCloudSaveError("");
       setFirebaseUser(u);
       if (u) setActiveTab("welcome");
@@ -326,8 +374,13 @@ export default function App() {
         }
         if (Array.isArray(saved?.scoresHistory)) setScoresHistory(saved.scoresHistory);
         if (saved?.mastery && typeof saved.mastery === "object") setMastery(saved.mastery);
-        if (typeof saved?.streak === "number") setStreak(saved.streak);
-        if (typeof saved?.streakLoggedToday === "boolean") setStreakLoggedToday(saved.streakLoggedToday);
+        const lastStudyDate = typeof saved?.streakLastActivityDate === "string" ? saved.streakLastActivityDate : "";
+        // Previous builds counted every correct question; only dated days can
+        // establish a genuine consecutive-day streak.
+        const savedStreak = lastStudyDate && typeof saved?.streak === "number" ? Math.max(0, saved.streak) : 0;
+        setStreak(savedStreak);
+        setStreakLastActivityDate(lastStudyDate);
+        streakRef.current = { streak: savedStreak, lastActivityDate: lastStudyDate };
         if (saved?.timetable && typeof saved.timetable === "object") setTimetable(saved.timetable);
         if (Array.isArray(saved?.weeklyChallenges)) setWeeklyChallenges(saved.weeklyChallenges);
         // Existing detailed logs and mistakes remain in their dedicated Firestore collections.
@@ -339,6 +392,17 @@ export default function App() {
         if (remoteMistakes.length) setMistakeJournal(remoteMistakes);
         localStorage.setItem("sat_profile_owner_uid", u.uid);
         setReadyToSyncUid(u.uid);
+        // Retry an offline activity that the browser saved before this sign-in.
+        const pendingDate = localStorage.getItem("sat_streak_pending_" + u.uid);
+        if (pendingDate && /^\\d{4}-\\d{2}-\\d{2}$/.test(pendingDate) && pendingDate <= localStudyDate()) {
+          recordStudyActivity(u.uid, pendingDate).then((result) => {
+            if (signedInUidRef.current !== u.uid) return;
+            streakRef.current = result;
+            setStreak(result.streak);
+            setStreakLastActivityDate(result.lastActivityDate);
+            localStorage.removeItem("sat_streak_pending_" + u.uid);
+          }).catch((error) => console.warn("Pending streak retry failed:", error));
+        }
       } catch (error) {
         console.warn("Unable to restore student data from Firebase. Cloud saving paused to protect existing data.", error);
         if (active && signedInUidRef.current === u.uid) {
@@ -430,16 +494,6 @@ export default function App() {
     localStorage.setItem("sat_reminder_settings", JSON.stringify(reminderSettings));
   }, [reminderSettings]);
 
-  const getTodayDateStr = () => {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-
-  const todayStr = getTodayDateStr();
-
   const hasLoggedToday = useMemo(() => {
     if (streakLoggedToday) return true;
     return studyLogs.some(
@@ -494,11 +548,7 @@ export default function App() {
       }
     });
 
-    if (!streakLoggedToday) {
-      setStreak((prev) => prev + 1);
-      setStreakLoggedToday(true);
-      localStorage.setItem("sat_streak_logged", "true");
-    }
+    markStudyActivity();
 
     if (firebaseUser) {
       saveFirestoreStudyLog(firebaseUser.uid, {
@@ -517,6 +567,8 @@ export default function App() {
       localStorage.removeItem("sat_profile");
       localStorage.removeItem("sat_streak");
       localStorage.removeItem("sat_streak_logged");
+      localStorage.removeItem("sat_streak_last_date");
+      if (auth.currentUser?.uid) localStorage.removeItem("sat_streak_pending_" + auth.currentUser.uid);
       localStorage.removeItem("sat_mastery");
       localStorage.removeItem("sat_scores_history");
       localStorage.removeItem("sat_study_logs");
@@ -536,7 +588,8 @@ export default function App() {
         focusPreference: "Balanced"
       });
       setStreak(0);
-      setStreakLoggedToday(false);
+      setStreakLastActivityDate("");
+      streakRef.current = { streak: 0, lastActivityDate: "" };
       setMastery({
         algebra: 0,
         advancedMath: 0,
@@ -661,11 +714,9 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem("sat_streak", streak.toString());
-  }, [streak]);
-
-  useEffect(() => {
+    localStorage.setItem("sat_streak_last_date", streakLastActivityDate);
     localStorage.setItem("sat_streak_logged", streakLoggedToday ? "true" : "false");
-  }, [streakLoggedToday]);
+  }, [streak, streakLastActivityDate, streakLoggedToday]);
 
   useEffect(() => {
     localStorage.setItem("sat_mastery", JSON.stringify(mastery));
@@ -1075,6 +1126,7 @@ export default function App() {
           notes: additionalStudyUpdateInput || "Practice test progress report check-in"
         };
         setScoresHistory(prev => [...prev, newScore]);
+        markStudyActivity();
 
         // Automatically unlock a Badge and award leaderboard points
         setWeeklyChallenges(prev =>
@@ -1120,6 +1172,7 @@ export default function App() {
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
         setChatHistory(prev => [...prev, assistantMsg]);
+        markStudyActivity();
 
         // Complete the "chat with assistant" weekly challenge if not already
         setWeeklyChallenges(prev =>
@@ -1133,18 +1186,8 @@ export default function App() {
     }
   };
 
-  // --- Interactive Streak Increment ---
-  const handleLogStudyToday = () => {
-    if (!streakLoggedToday) {
-      setStreak(prev => prev + 1);
-      setStreakLoggedToday(true);
-    }
-  };
-
-  const handleResetStreak = () => {
-    setStreak(0);
-    setStreakLoggedToday(false);
-  };
+  // Manual study check-ins require actual study time, rather than free streak points.
+  const handleLogStudyToday = () => setShowQuickLogModal(true);
 
   // --- Weekly Challenges Completion Logic ---
   const toggleChallenge = (id: string) => {
@@ -1267,6 +1310,7 @@ export default function App() {
   };
 
   const submitCurrentModule = () => {
+    if (Object.keys(userAnswers).length > 0) markStudyActivity();
     if (examCurrentSection === "readingWriting" && examModule === "module1") {
       // Calculate Module 1 score for Reading Writing
       const m1Questions = mockExam1.readingWriting.module1;
@@ -2419,7 +2463,8 @@ export default function App() {
               weeklyChallenges={weeklyChallenges}
               setWeeklyChallenges={setWeeklyChallenges}
               leaderboard={leaderboardList}
-              streak={streak}
+              streak={displayedStreak}
+              onStudyActivity={markStudyActivity}
               topicMastery={topicMasteryList}
               setActiveTab={setActiveTab}
               setMockExamActive={setMockExamActive}
@@ -3931,12 +3976,8 @@ export default function App() {
                           disabled={practiceAnswers[aiPracticeQuestions[practiceIndex].id] === undefined}
                           onClick={() => {
                             setPracticeShowExplanation(true);
-                            // Increase point streak slightly on correct answer
-                            const qId = aiPracticeQuestions[practiceIndex].id;
-                            const isCorrect = practiceAnswers[qId] === aiPracticeQuestions[practiceIndex].correctIndex;
-                            if (isCorrect) {
-                              setStreak(prev => prev + 1);
-                            }
+                            // Any submitted practice question counts as studying today.
+                            markStudyActivity();
                           }}
                           className={`px-4 py-2 text-white text-xs font-extrabold rounded-lg transition-all shadow-xs flex items-center gap-1 cursor-pointer ${
                             practiceAnswers[aiPracticeQuestions[practiceIndex].id] === undefined
