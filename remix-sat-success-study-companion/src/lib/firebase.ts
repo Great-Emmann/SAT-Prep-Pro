@@ -131,18 +131,22 @@ export async function recordStudyActivity(userId: string, activityDate: string):
   return runTransaction(db, async (transaction) => {
     const snapshot = await transaction.get(userRef);
     const saved = snapshot.data();
+    // Prefer the versioned streak record: older app tabs can still be running
+    // and may overwrite the legacy "streak" field during their old autosaves.
+    const canonical = saved?.studyStreakV2;
+    const hasCanonical = canonical && typeof canonical.streak === "number" &&
+      typeof canonical.lastActivityDate === "string";
+    const lastActivityDate = hasCanonical
+      ? canonical.lastActivityDate
+      : (typeof saved?.streakLastActivityDate === "string" ? saved.streakLastActivityDate : "");
+    const count = hasCanonical ? canonical.streak : saved?.streak;
     const current: StudyStreak = {
-      // Old streak counts lacked a date and could inflate per answered question.
-      // Do not treat that undated number as verified consecutive days.
-      streak: typeof saved?.streakLastActivityDate === "string" && typeof saved?.streak === "number"
-        ? Math.max(0, saved.streak)
-        : 0,
-      lastActivityDate: typeof saved?.streakLastActivityDate === "string"
-        ? saved.streakLastActivityDate
-        : ""
+      streak: lastActivityDate && typeof count === "number" ? Math.max(0, count) : 0,
+      lastActivityDate
     };
     const next = advanceStudyStreak(current, activityDate);
     transaction.set(userRef, {
+      studyStreakV2: next,
       streak: next.streak,
       streakLastActivityDate: next.lastActivityDate,
       streakLoggedToday: next.lastActivityDate === activityDate,
@@ -160,8 +164,11 @@ export function subscribeStudyStreak(
 ): () => void {
   return onSnapshot(doc(db, "users", userId), (snapshot) => {
     const data = snapshot.data();
-    if (typeof data?.streakLastActivityDate === "string" && data.streakLastActivityDate &&
-        typeof data?.streak === "number") {
+    const canonical = data?.studyStreakV2;
+    if (canonical && typeof canonical.streak === "number" && typeof canonical.lastActivityDate === "string") {
+      onChange({ streak: Math.max(0, canonical.streak), lastActivityDate: canonical.lastActivityDate });
+    } else if (typeof data?.streakLastActivityDate === "string" && data.streakLastActivityDate &&
+               typeof data?.streak === "number") {
       onChange({ streak: Math.max(0, data.streak), lastActivityDate: data.streakLastActivityDate });
     }
   }, (error) => onError?.(error));
