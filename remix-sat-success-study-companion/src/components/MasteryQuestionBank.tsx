@@ -374,7 +374,7 @@ export const MasteryQuestionBank: React.FC<{ onAvailabilityChange?: (available: 
                   <button type="button" onClick={() => setViewOriginal(!viewOriginal)} className="text-xs font-bold text-indigo-700 hover:underline">{viewOriginal ? "Hide" : "View"} original PDF formatting</button>
                   {(viewOriginal || /\b(graph|figure|chart|table|diagram|scatterplot)\b/i.test(question.prompt)) && question.images.map((src, index) => (
                     <div key={index} className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
-                      <img src={src} alt={"Original question layout " + (index + 1)} className="w-full h-auto" loading="lazy" />
+                      <img src={src} alt={"Original question layout " + (index + 1)} onClick={() => setExpandedImage(!expandedImage)} className={expandedImage ? "max-w-none w-[1100px] cursor-zoom-out" : "w-full h-auto cursor-zoom-in"} loading="lazy" />
                     </div>
                   ))}
                   <div className="grid grid-cols-1 gap-2">
