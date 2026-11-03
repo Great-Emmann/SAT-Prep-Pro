@@ -394,7 +394,7 @@ export default function App() {
         setReadyToSyncUid(u.uid);
         // Retry an offline activity that the browser saved before this sign-in.
         const pendingDate = localStorage.getItem("sat_streak_pending_" + u.uid);
-        if (pendingDate && /^\\d{4}-\\d{2}-\\d{2}$/.test(pendingDate) && pendingDate <= localStudyDate()) {
+        if (pendingDate && /^\d{4}-\d{2}-\d{2}$/.test(pendingDate) && pendingDate <= localStudyDate()) {
           recordStudyActivity(u.uid, pendingDate).then((result) => {
             if (signedInUidRef.current !== u.uid) return;
             streakRef.current = result;
