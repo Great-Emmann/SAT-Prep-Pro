@@ -2507,6 +2507,10 @@ export default function App() {
               topicMastery={topicMasteryList}
               setActiveTab={setActiveTab}
               setMockExamActive={setMockExamActive}
+              setShowQuickLogModal={setShowQuickLogModal}
+              setShowReminderModal={setShowReminderModal}
+              activeSubSection={activeSubSection}
+              setActiveSubSection={setActiveSubSection}
             />
           ) : (
             <div className="grid grid-cols-12 gap-4 w-full max-w-5xl mx-auto min-w-0">
