@@ -124,7 +124,7 @@ export async function recordStudyActivity(userId: string, activityDate: string):
   if (!userId || auth.currentUser?.uid !== userId) {
     throw new Error("Sign in before recording study progress.");
   }
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(activityDate)) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(activityDate)) {
     throw new Error("Invalid activity date.");
   }
   const userRef = doc(db, "users", userId);
