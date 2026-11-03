@@ -1109,7 +1109,7 @@ export default function App() {
           latestMath: latestInputMath,
           latestRW: latestInputRW,
           updates: additionalStudyUpdateInput,
-          streak,
+          streak: displayedStreak,
           history: scoresHistory
         })
       });
@@ -1160,7 +1160,7 @@ export default function App() {
         body: JSON.stringify({
           messages: updatedHistory,
           profile,
-          currentStreak: streak,
+          currentStreak: displayedStreak,
           weakAreas: weakAreaDescription
         })
       });
@@ -1206,7 +1206,7 @@ export default function App() {
     const challengePoints = weeklyChallenges
       .filter(c => c.completed)
       .reduce((sum, c) => sum + c.points, 0);
-    const streakBonus = streak * 15;
+    const streakBonus = displayedStreak * 15;
     return 1000 + challengePoints + streakBonus; // baseline 1000
   };
 
@@ -1226,7 +1226,7 @@ export default function App() {
       username: profile.username,
       emoji: profile.emoji,
       points: userPoints,
-      streak: streak,
+      streak: displayedStreak,
       isUser: true
     });
 
@@ -1530,10 +1530,10 @@ export default function App() {
 
   // Dynamic Badge Unlocks
   const isBadgeUnlocked = (badgeType: string) => {
-    if (badgeType === "welcome") return streak >= 1;
-    if (badgeType === "star") return streak >= 3 || scoresHistory.length > 2;
-    if (badgeType === "warrior") return streak >= 7;
-    if (badgeType === "master") return streak >= 30;
+    if (badgeType === "welcome") return displayedStreak >= 1;
+    if (badgeType === "star") return displayedStreak >= 3 || scoresHistory.length > 2;
+    if (badgeType === "warrior") return displayedStreak >= 7;
+    if (badgeType === "master") return displayedStreak >= 30;
     if (badgeType === "improvement") {
       const initialTotal = 620 + 580; // Default base total
       const currentTotal = profile.currentMath + profile.currentReadingWriting;
@@ -1551,12 +1551,12 @@ export default function App() {
   }, [timetable.schedule]);
 
   const leaderboardList: LeaderboardEntry[] = useMemo(() => [
-    { name: profile.name || "You", username: profile.username || "student", emoji: profile.emoji || "🎓", targetScore: (profile.targetMath || 700) + (profile.targetReadingWriting || 700), points: 1420, streak: streak || 5, isUser: true },
+    { name: profile.name || "You", username: profile.username || "student", emoji: profile.emoji || "🎓", targetScore: (profile.targetMath || 700) + (profile.targetReadingWriting || 700), points: 1420, streak: displayedStreak, isUser: true },
     { name: "Alex Chen", username: "alex_c", emoji: "⚡", targetScore: 1540, points: 1850, streak: 14 },
     { name: "Sophia Rodriguez", username: "sophia_r", emoji: "🌟", targetScore: 1510, points: 1620, streak: 9 },
     { name: "Marcus Vance", username: "marcus_v", emoji: "🔥", targetScore: 1480, points: 1390, streak: 7 },
     { name: "Emily Watson", username: "emily_w", emoji: "🎯", targetScore: 1450, points: 1210, streak: 4 }
-  ], [profile, streak]);
+  ], [profile, displayedStreak]);
 
   const topicMasteryList = useMemo(() => [
     { topic: "Algebra & Linear Equations", masteryPercent: mastery.algebra || 65 },
@@ -2169,13 +2169,13 @@ export default function App() {
             {/* Streak Badge */}
             <div className="flex items-center gap-1.5 bg-orange-50 border border-orange-200 text-orange-700 px-3 py-1 rounded-xl text-xs font-black shrink-0">
               <Flame size={15} className="text-orange-500 fill-orange-500 animate-pulse" />
-              <span>{streak} DAYS</span>
+              <span>{displayedStreak} DAYS</span>
             </div>
 
             {/* Points Gem Badge */}
             <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1 rounded-xl text-xs font-black shrink-0">
               <span>💎</span>
-              <span>{weeklyChallenges.filter(c => c.completed).length * 80 + streak * 50} PTS</span>
+              <span>{weeklyChallenges.filter(c => c.completed).length * 80 + displayedStreak * 50} PTS</span>
             </div>
 
             {/* Target Score Summary */}
@@ -2316,7 +2316,7 @@ export default function App() {
                     You haven't logged today's study session yet!
                   </h3>
                   <p className="text-xs text-amber-100 font-medium mt-0.5">
-                    Record your study hours today to maintain your <span className="font-black text-white underline">{streak}-day study streak</span> and reach your SAT targets.
+                    Record your study hours today to maintain your <span className="font-black text-white underline">{displayedStreak}-day study streak</span> and reach your SAT targets.
                   </p>
                 </div>
               </div>
@@ -2382,7 +2382,7 @@ export default function App() {
                   <div className="flex flex-wrap gap-2 mt-5">
                     <span className="bg-white/15 border border-white/20 rounded-full px-3 py-1.5 text-xs font-semibold">Current SAT: {profile.currentMath + profile.currentReadingWriting}/1600</span>
                     <span className="bg-white/15 border border-white/20 rounded-full px-3 py-1.5 text-xs font-semibold">Goal: {profile.targetMath + profile.targetReadingWriting}/1600</span>
-                    <span className="bg-white/15 border border-white/20 rounded-full px-3 py-1.5 text-xs font-semibold">{streak} day study streak</span>
+                    <span className="bg-white/15 border border-white/20 rounded-full px-3 py-1.5 text-xs font-semibold">{displayedStreak} day study streak</span>
                   </div>
                 </div>
                 <div aria-hidden="true" className="absolute -right-10 -bottom-20 w-64 h-64 bg-white/10 rounded-full blur-2xl" />
@@ -2405,7 +2405,7 @@ export default function App() {
                   { id: "roadmap", icon: "🧭", title: "Score Roadmap", description: "Focus on the gap between your current and goal scores." },
                   { id: "schedule", icon: "🗓️", title: "Study Schedule", description: "View and customize your study timetable." },
                   { id: "mastery", icon: "🏅", title: "Topic Mastery", description: "Review your skills by SAT topic." },
-                  { id: "streak", icon: "🔥", title: "Study Streak", description: "Log study sessions and view your badges." }
+                  { id: "streak", icon: "🔥", title: "Study Streak", description: "Earn daily streaks automatically when you study." }
                 ] as const).map(item => (
                   <button
                     key={item.id}
@@ -2435,7 +2435,7 @@ export default function App() {
             </section>
           ) : activeTab === "chat" ? (
             <div className="animate-fade-in max-w-5xl mx-auto h-[82vh]">
-              <GeminiChatbot />
+              <GeminiChatbot onStudyActivity={markStudyActivity} />
             </div>
           ) : activeTab === "dashboard" ? (
             /* LEARNING ROADMAP & SUB-SECTIONS */
@@ -2767,44 +2767,33 @@ export default function App() {
               <WidgetCard
                 id="streak-card"
                 title="Study Streak & Badges"
-                subtitle={`Level ${Math.floor(streak / 5) + 1} Consistent Learner`}
+                subtitle={`Level ${Math.floor(displayedStreak / 5) + 1} Consistent Learner`}
                 icon={Flame}
-                badge={{ text: `${streak} DAYS`, color: "bg-orange-50 text-orange-600 border border-orange-200" }}
+                badge={{ text: `${displayedStreak} DAYS`, color: "bg-orange-50 text-orange-600 border border-orange-200" }}
               >
                 <div className="flex items-center justify-center gap-2 my-2 bg-slate-50 py-3 rounded-lg border border-slate-100">
                   <span className="text-3xl animate-bounce">🔥</span>
-                  <span className="text-4xl font-black text-slate-800 tracking-tight">{streak}</span>
+                  <span className="text-4xl font-black text-slate-800 tracking-tight">{displayedStreak}</span>
                   <span className="text-xs font-bold text-slate-400 self-end mb-1">DAYS</span>
                 </div>
 
-                <div className="flex gap-2 my-3">
+                <div className="space-y-2 my-3">
+                  <p className={`text-center text-xs font-bold rounded-lg px-3 py-2 ${streakLoggedToday ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>
+                    {streakLoggedToday
+                      ? "✓ Today's study is counted — come back tomorrow to extend your streak!"
+                      : "Answer a practice or mastery question, finish a mock module, or log study time to earn today's streak."}
+                  </p>
                   <button
                     id="log-study-btn"
                     onClick={handleLogStudyToday}
-                    disabled={streakLoggedToday}
-                    className={`flex-1 py-1.5 px-3 text-xs font-bold rounded-lg border transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
-                      streakLoggedToday
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-100 cursor-default"
-                        : "bg-orange-500 hover:bg-orange-600 text-white border-orange-500 hover:scale-[1.02]"
-                    }`}
+                    className="w-full py-2 px-3 text-xs font-bold rounded-lg bg-orange-500 hover:bg-orange-600 text-white border border-orange-500 transition-all flex items-center justify-center gap-2"
                   >
-                    <CheckCircle2 size={13} />
-                    {streakLoggedToday ? "Studied Today!" : "Log Today's Study"}
+                    <Plus size={14} /> Log study time
                   </button>
-                  <button
-                    onClick={handleResetStreak}
-                    title="Reset Streak"
-                    className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-lg border border-slate-200 cursor-pointer"
-                  >
-                    <RotateCcw size={14} />
-                  </button>
+                  <p className="text-[10px] text-center text-slate-500">
+                    One streak day per calendar day. Missing a full study day resets the consecutive count.
+                  </p>
                 </div>
-
-                <p className="text-[10px] text-center text-slate-500 leading-tight italic bg-slate-50 p-2 rounded border border-slate-100">
-                  {streak >= 14
-                    ? "You are in the top 5% of consistent learners worldwide!"
-                    : "Keep the flame burning! Consistent study yields maximum SAT memory retention."}
-                </p>
 
                 {/* Achievements / Badges Section */}
                 <div className="mt-4 pt-3 border-t border-slate-100">
