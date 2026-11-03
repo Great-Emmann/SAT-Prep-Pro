@@ -10,7 +10,8 @@ import {
   deleteDoc,
   query,
   orderBy,
-  onSnapshot
+  onSnapshot,
+  runTransaction
 } from "firebase/firestore";
 import {
   getAuth,
@@ -22,6 +23,7 @@ import {
   signInAnonymously
 } from "firebase/auth";
 import firebaseConfig from "../../firebase-applet-config.json";
+import { advanceStudyStreak, StudyStreak } from "./studyStreak";
 
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
@@ -106,8 +108,6 @@ export async function saveUserStudyState(userId: string, data: {
   profile: any;
   scoresHistory: any[];
   mastery: any;
-  streak: number;
-  streakLoggedToday: boolean;
   timetable: any;
   weeklyChallenges: any[];
 }): Promise<void> {
@@ -116,6 +116,40 @@ export async function saveUserStudyState(userId: string, data: {
     ...data,
     updatedAt: new Date().toISOString()
   }, { merge: true });
+}
+
+// Record a real study event atomically. Repeated answers on the same calendar
+// date count once, even when the student is studying on multiple devices.
+export async function recordStudyActivity(userId: string, activityDate: string): Promise<StudyStreak> {
+  if (!userId || auth.currentUser?.uid !== userId) {
+    throw new Error("Sign in before recording study progress.");
+  }
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(activityDate)) {
+    throw new Error("Invalid activity date.");
+  }
+  const userRef = doc(db, "users", userId);
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(userRef);
+    const saved = snapshot.data();
+    const current: StudyStreak = {
+      // Old streak counts lacked a date and could inflate per answered question.
+      // Do not treat that undated number as verified consecutive days.
+      streak: typeof saved?.streakLastActivityDate === "string" && typeof saved?.streak === "number"
+        ? Math.max(0, saved.streak)
+        : 0,
+      lastActivityDate: typeof saved?.streakLastActivityDate === "string"
+        ? saved.streakLastActivityDate
+        : ""
+    };
+    const next = advanceStudyStreak(current, activityDate);
+    transaction.set(userRef, {
+      streak: next.streak,
+      streakLastActivityDate: next.lastActivityDate,
+      streakLoggedToday: next.lastActivityDate === activityDate,
+      lastStudyActivityAt: new Date().toISOString()
+    }, { merge: true });
+    return next;
+  });
 }
 
 // Save or sync user SAT profile to Firestore
