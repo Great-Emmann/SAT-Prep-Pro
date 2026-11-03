@@ -156,6 +156,17 @@ export async function recordStudyActivity(userId: string, activityDate: string):
   });
 }
 
+// An explicit full-data reset must clear the canonical streak, not only browser storage.
+export async function resetStudyStreak(userId: string): Promise<void> {
+  if (!userId || auth.currentUser?.uid !== userId) throw new Error("Sign in to reset streak data.");
+  await setDoc(doc(db, "users", userId), {
+    studyStreakV2: { streak: 0, lastActivityDate: "" },
+    streak: 0,
+    streakLastActivityDate: "",
+    streakLoggedToday: false
+  }, { merge: true });
+}
+
 // Keep the streak live when the same account is open on another device.
 export function subscribeStudyStreak(
   userId: string,
