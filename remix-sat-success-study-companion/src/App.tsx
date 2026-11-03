@@ -292,8 +292,14 @@ export default function App() {
   // Firestore transactions stop duplicate increments across devices and tabs.
   const markStudyActivity = () => {
     const uid = auth.currentUser?.uid;
-    if (!uid || signedInUidRef.current !== uid || readyToSyncUid !== uid) return;
+    if (!uid || signedInUidRef.current !== uid) return;
     const day = localStudyDate();
+    if (readyToSyncUid !== uid) {
+      // A student may answer before account data finishes loading.
+      // Queue the date without overwriting their existing cloud streak.
+      localStorage.setItem("sat_streak_pending_" + uid, day);
+      return;
+    }
     const key = uid + ":" + day;
     if (streakRef.current.lastActivityDate >= day || streakSaveInFlightRef.current === key) return;
     const next = advanceStudyStreak(streakRef.current, day);
