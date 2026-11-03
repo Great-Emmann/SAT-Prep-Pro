@@ -66,6 +66,7 @@ import {
   saveUserStudyState,
   recordStudyActivity,
   subscribeStudyStreak,
+  resetStudyStreak,
   saveUserProfile,
   syncUserSettings,
   saveFirestoreStudyLog,
@@ -638,6 +639,12 @@ export default function App() {
       setStreak(0);
       setStreakLastActivityDate("");
       streakRef.current = { streak: 0, lastActivityDate: "" };
+      if (auth.currentUser?.uid) {
+        void resetStudyStreak(auth.currentUser.uid).catch((error) => {
+          console.error("Failed to reset cloud streak:", error);
+          setCloudSaveError("Couldn't reset your saved streak. Please check your connection.");
+        });
+      }
       setMastery({
         algebra: 0,
         advancedMath: 0,
