@@ -381,10 +381,19 @@ export default function App() {
         }
         if (Array.isArray(saved?.scoresHistory)) setScoresHistory(saved.scoresHistory);
         if (saved?.mastery && typeof saved.mastery === "object") setMastery(saved.mastery);
-        const lastStudyDate = typeof saved?.streakLastActivityDate === "string" ? saved.streakLastActivityDate : "";
-        // Previous builds counted every correct question; only dated days can
-        // establish a genuine consecutive-day streak.
-        const savedStreak = lastStudyDate && typeof saved?.streak === "number" ? Math.max(0, saved.streak) : 0;
+        const canonicalStreak = saved?.studyStreakV2 &&
+          typeof saved.studyStreakV2.streak === "number" &&
+          typeof saved.studyStreakV2.lastActivityDate === "string"
+            ? saved.studyStreakV2
+            : null;
+        const lastStudyDate = canonicalStreak
+          ? canonicalStreak.lastActivityDate
+          : (typeof saved?.streakLastActivityDate === "string" ? saved.streakLastActivityDate : "");
+        // Old builds counted every correct question; only dated days count.
+        const countFromCloud = canonicalStreak ? canonicalStreak.streak : saved?.streak;
+        const savedStreak = lastStudyDate && typeof countFromCloud === "number"
+          ? Math.max(0, countFromCloud)
+          : 0;
         setStreak(savedStreak);
         setStreakLastActivityDate(lastStudyDate);
         streakRef.current = { streak: savedStreak, lastActivityDate: lastStudyDate };
