@@ -65,6 +65,7 @@ import {
   fetchUserStudyState,
   saveUserStudyState,
   recordStudyActivity,
+  subscribeStudyStreak,
   saveUserProfile,
   syncUserSettings,
   saveFirestoreStudyLog,
@@ -329,7 +330,7 @@ export default function App() {
       }).then(() => {
         localStorage.setItem("sat_profile_owner_uid", uid);
         localStorage.setItem("sat_profile_" + uid, JSON.stringify(profile));
-        setCloudSaveError("");
+        if (!localStorage.getItem("sat_streak_pending_" + uid)) setCloudSaveError("");
       }).catch(error => {
         console.error("Account progress autosave failed:", error);
         setCloudSaveError("Cloud sync is unavailable. Changes remain saved on this device.");
@@ -392,17 +393,6 @@ export default function App() {
         if (remoteMistakes.length) setMistakeJournal(remoteMistakes);
         localStorage.setItem("sat_profile_owner_uid", u.uid);
         setReadyToSyncUid(u.uid);
-        // Retry an offline activity that the browser saved before this sign-in.
-        const pendingDate = localStorage.getItem("sat_streak_pending_" + u.uid);
-        if (pendingDate && /^\d{4}-\d{2}-\d{2}$/.test(pendingDate) && pendingDate <= localStudyDate()) {
-          recordStudyActivity(u.uid, pendingDate).then((result) => {
-            if (signedInUidRef.current !== u.uid) return;
-            streakRef.current = result;
-            setStreak(result.streak);
-            setStreakLastActivityDate(result.lastActivityDate);
-            localStorage.removeItem("sat_streak_pending_" + u.uid);
-          }).catch((error) => console.warn("Pending streak retry failed:", error));
-        }
       } catch (error) {
         console.warn("Unable to restore student data from Firebase. Cloud saving paused to protect existing data.", error);
         if (active && signedInUidRef.current === u.uid) {
@@ -413,6 +403,49 @@ export default function App() {
     });
     return () => { active = false; unsubscribe(); };
   }, []);
+
+  // Live updates keep a streak consistent if a student studies on another device.
+  useEffect(() => {
+    const uid = firebaseUser?.uid;
+    if (!uid || readyToSyncUid !== uid) return;
+    return subscribeStudyStreak(uid, (remote) => {
+      if (signedInUidRef.current !== uid) return;
+      if (remote.lastActivityDate < streakRef.current.lastActivityDate) return;
+      if (streakSaveInFlightRef.current && remote.lastActivityDate <= streakRef.current.lastActivityDate) return;
+      streakRef.current = remote;
+      setStreak(remote.streak);
+      setStreakLastActivityDate(remote.lastActivityDate);
+    }, (error) => console.warn("Live streak update unavailable:", error));
+  }, [firebaseUser?.uid, readyToSyncUid]);
+
+  // An interrupted or offline save is retried when the browser reconnects.
+  useEffect(() => {
+    const uid = firebaseUser?.uid;
+    if (!uid || readyToSyncUid !== uid) return;
+    let retrying = false;
+    const retryPendingActivity = () => {
+      const pending = localStorage.getItem("sat_streak_pending_" + uid);
+      if (!pending || !/^\d{4}-\d{2}-\d{2}$/.test(pending) || pending > localStudyDate()) return;
+      if (retrying || streakSaveInFlightRef.current || signedInUidRef.current !== uid) return;
+      retrying = true;
+      recordStudyActivity(uid, pending).then((remote) => {
+        if (signedInUidRef.current !== uid) return;
+        streakRef.current = remote;
+        setStreak(remote.streak);
+        setStreakLastActivityDate(remote.lastActivityDate);
+        localStorage.removeItem("sat_streak_pending_" + uid);
+        setCloudSaveError("");
+      }).catch((error) => console.warn("Pending study activity will retry:", error))
+        .finally(() => { retrying = false; });
+    };
+    window.addEventListener("online", retryPendingActivity);
+    const timer = window.setInterval(retryPendingActivity, 45_000);
+    retryPendingActivity();
+    return () => {
+      window.removeEventListener("online", retryPendingActivity);
+      window.clearInterval(timer);
+    };
+  }, [firebaseUser?.uid, readyToSyncUid]);
 
   // Open the existing student-profile editor from any page.
   const openStudentProfile = () => {
